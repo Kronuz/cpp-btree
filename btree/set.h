@@ -67,33 +67,33 @@ class set : public btree_unique_container<
 
 } // namespace btree
 
-template <typename K, typename V, typename C, typename A, int N>
-bool operator==(const btree::set<K, V, C, A, N>& lhs, const btree::set<K, V, C, A, N>& rhs) {
+template <typename K, typename C, typename A, int N>
+bool operator==(const btree::set<K, C, A, N>& lhs, const btree::set<K, C, A, N>& rhs) {
 	return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin());
 }
 
-template <typename K, typename V, typename C, typename A, int N>
-bool operator<(const btree::set<K, V, C, A, N>& lhs, const btree::set<K, V, C, A, N>& rhs) {
+template <typename K, typename C, typename A, int N>
+bool operator<(const btree::set<K, C, A, N>& lhs, const btree::set<K, C, A, N>& rhs) {
 	return std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
 }
 
-template <typename K, typename V, typename C, typename A, int N>
-bool operator!=(const btree::set<K, V, C, A, N>& lhs, const btree::set<K, V, C, A, N>& rhs) {
+template <typename K, typename C, typename A, int N>
+bool operator!=(const btree::set<K, C, A, N>& lhs, const btree::set<K, C, A, N>& rhs) {
 	return !(lhs == rhs);
 }
 
-template <typename K, typename V, typename C, typename A, int N>
-bool operator>(const btree::set<K, V, C, A, N>& lhs, const btree::set<K, V, C, A, N>& rhs) {
+template <typename K, typename C, typename A, int N>
+bool operator>(const btree::set<K, C, A, N>& lhs, const btree::set<K, C, A, N>& rhs) {
 	return rhs < lhs;
 }
 
-template <typename K, typename V, typename C, typename A, int N>
-bool operator>=(const btree::set<K, V, C, A, N>& lhs, const btree::set<K, V, C, A, N>& rhs) {
+template <typename K, typename C, typename A, int N>
+bool operator>=(const btree::set<K, C, A, N>& lhs, const btree::set<K, C, A, N>& rhs) {
 	return !(lhs < rhs);
 }
 
-template <typename K, typename V, typename C, typename A, int N>
-bool operator<=(const btree::set<K, V, C, A, N>& lhs, const btree::set<K, V, C, A, N>& rhs) {
+template <typename K, typename C, typename A, int N>
+bool operator<=(const btree::set<K, C, A, N>& lhs, const btree::set<K, C, A, N>& rhs) {
 	return !(rhs < lhs);
 }
 
@@ -145,33 +145,33 @@ class multiset : public btree_multi_container<
 
 } // namespace btree
 
-template <typename K, typename V, typename C, typename A, int N>
-bool operator==(const btree::multiset<K, V, C, A, N>& lhs, const btree::multiset<K, V, C, A, N>& rhs) {
+template <typename K, typename C, typename A, int N>
+bool operator==(const btree::multiset<K, C, A, N>& lhs, const btree::multiset<K, C, A, N>& rhs) {
 	return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin());
 }
 
-template <typename K, typename V, typename C, typename A, int N>
-bool operator<(const btree::multiset<K, V, C, A, N>& lhs, const btree::multiset<K, V, C, A, N>& rhs) {
+template <typename K, typename C, typename A, int N>
+bool operator<(const btree::multiset<K, C, A, N>& lhs, const btree::multiset<K, C, A, N>& rhs) {
 	return std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
 }
 
-template <typename K, typename V, typename C, typename A, int N>
-bool operator!=(const btree::multiset<K, V, C, A, N>& lhs, const btree::multiset<K, V, C, A, N>& rhs) {
+template <typename K, typename C, typename A, int N>
+bool operator!=(const btree::multiset<K, C, A, N>& lhs, const btree::multiset<K, C, A, N>& rhs) {
 	return !(lhs == rhs);
 }
 
-template <typename K, typename V, typename C, typename A, int N>
-bool operator>(const btree::multiset<K, V, C, A, N>& lhs, const btree::multiset<K, V, C, A, N>& rhs) {
+template <typename K, typename C, typename A, int N>
+bool operator>(const btree::multiset<K, C, A, N>& lhs, const btree::multiset<K, C, A, N>& rhs) {
 	return rhs < lhs;
 }
 
-template <typename K, typename V, typename C, typename A, int N>
-bool operator>=(const btree::multiset<K, V, C, A, N>& lhs, const btree::multiset<K, V, C, A, N>& rhs) {
+template <typename K, typename C, typename A, int N>
+bool operator>=(const btree::multiset<K, C, A, N>& lhs, const btree::multiset<K, C, A, N>& rhs) {
 	return !(lhs < rhs);
 }
 
-template <typename K, typename V, typename C, typename A, int N>
-bool operator<=(const btree::multiset<K, V, C, A, N>& lhs, const btree::multiset<K, V, C, A, N>& rhs) {
+template <typename K, typename C, typename A, int N>
+bool operator<=(const btree::multiset<K, C, A, N>& lhs, const btree::multiset<K, C, A, N>& rhs) {
 	return !(rhs < lhs);
 }
 
