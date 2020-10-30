@@ -2942,6 +2942,11 @@ public:
 	size_type count(const key_type& key) const {
 		return this->__tree.count_unique(key);
 	}
+	#if __cplusplus > 201703L
+		bool contains(const key_type& key) const {
+			return find(key) != this->end();
+		}
+	#endif
 
 	// Insertion routines.
 	std::pair<iterator, bool> insert(const value_type& x) {
@@ -3045,6 +3050,11 @@ class btree_multi_container : public btree_container<Tree> {
 	size_type count(const key_type& key) const {
 		return this->__tree.count_multi(key);
 	}
+	#if __cplusplus > 201703L
+		bool contains(const key_type& key) const {
+			return find(key) != this->end();
+		}
+	#endif
 
 	// Insertion routines.
 	iterator insert(const value_type& x) {
