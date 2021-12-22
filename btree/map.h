@@ -1,4 +1,7 @@
 /*
+ * LICENSE
+ *
+ * Copyright (c) 2021 Anguilla Team
  * Copyright (c) 2019 German Mendez Bravo (Kronuz)
  * Copyright (c) 2013 Google Inc.
  *
@@ -14,18 +17,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
+ * DESCRIPTION
  *
  * A btree::map<> implements the STL unique sorted associative container
  * interface and the pair associative container interface (a.k.a map<>) using a
- * btree. See btree.h for details of the btree implementation and caveats.
+ * B-tree. See btree.h for details of the B-tree implementation and caveats.
  */
+
+#pragma once
 
 #ifndef BTREE_MAP_H__
 #define BTREE_MAP_H__
 
-#include "btree.h"
-
 #include <stdexcept>
+
+#include "btree.h"
 
 namespace btree {
 
@@ -125,7 +131,7 @@ template <typename Key, typename Value, typename Compare = std::less<Key>,
 class map
     : public btree_map_container<
           btree<btree_map_params<Key, Value, Compare, Alloc, TargetNodeSize>>> {
-
+    typedef std::pair<const Key, Value> value_type;
     typedef map<Key, Value, Compare, Alloc, TargetNodeSize> self_type;
     typedef btree_map_params<Key, Value, Compare, Alloc, TargetNodeSize>
         params_type;
@@ -135,11 +141,21 @@ class map
   public:
     typedef typename btree_type::key_compare key_compare;
     typedef typename btree_type::allocator_type allocator_type;
+    static_assert(
+        (std::is_same<typename allocator_type::value_type, value_type>::value),
+        "Alloc::value_type must be same type as value_type");
 
   public:
-    // Default constructor.
-    map(const key_compare& comp = key_compare(),
-        const allocator_type& alloc = allocator_type())
+    // Default constructors.
+    map() : super_type(key_compare(), allocator_type()) {}
+
+    explicit map(const key_compare& comp)
+        : super_type(comp, allocator_type()) {}
+
+    explicit map(const allocator_type& alloc)
+        : super_type(key_compare(), alloc) {}
+
+    explicit map(const key_compare& comp, const allocator_type& alloc)
         : super_type(comp, alloc) {}
 
     // Copy constructor.
@@ -207,7 +223,6 @@ template <typename Key, typename Value, typename Compare = std::less<Key>,
 class multimap
     : public btree_multi_container<
           btree<btree_map_params<Key, Value, Compare, Alloc, TargetNodeSize>>> {
-
     typedef multimap<Key, Value, Compare, Alloc, TargetNodeSize> self_type;
     typedef btree_map_params<Key, Value, Compare, Alloc, TargetNodeSize>
         params_type;
@@ -221,9 +236,16 @@ class multimap
     typedef typename btree_type::mapped_type mapped_type;
 
   public:
-    // Default constructor.
-    multimap(const key_compare& comp = key_compare(),
-             const allocator_type& alloc = allocator_type())
+    // Default constructors.
+    multimap() : super_type(key_compare(), allocator_type()) {}
+
+    explicit multimap(const key_compare& comp)
+        : super_type(comp, allocator_type()) {}
+
+    explicit multimap(const allocator_type& alloc)
+        : super_type(key_compare(), alloc) {}
+
+    explicit multimap(const key_compare& comp, const allocator_type& alloc)
         : super_type(comp, alloc) {}
 
     // Copy constructor.

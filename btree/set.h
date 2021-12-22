@@ -1,4 +1,7 @@
 /*
+ * LICENSE
+ *
+ * Copyright (c) 2021 Anguilla Team
  * Copyright (c) 2019 German Mendez Bravo (Kronuz)
  * Copyright (c) 2013 Google Inc.
  *
@@ -14,11 +17,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
+ * DESCRIPTION
  *
  * A btree::set<> implements the STL unique sorted associative container
- * interface (a.k.a set<>) using a btree. See btree.h for details of the btree
- * implementation and caveats.
+ * interface (a.k.a set<>) using a B-tree.
+ * See btree.h for details of the B-tree implementation and caveats.
  */
+
+#pragma once
 
 #ifndef BTREE_SET_H__
 #define BTREE_SET_H__
@@ -32,8 +38,8 @@ template <typename Key, typename Compare = std::less<Key>,
           typename Alloc = std::allocator<Key>, int TargetNodeSize = 256>
 class set : public btree_unique_container<
                 btree<btree_set_params<Key, Compare, Alloc, TargetNodeSize>>> {
-
     typedef set<Key, Compare, Alloc, TargetNodeSize> self_type;
+    typedef value_type Key;
     typedef btree_set_params<Key, Compare, Alloc, TargetNodeSize> params_type;
     typedef btree<params_type> btree_type;
     typedef btree_unique_container<btree_type> super_type;
@@ -41,11 +47,21 @@ class set : public btree_unique_container<
   public:
     typedef typename btree_type::key_compare key_compare;
     typedef typename btree_type::allocator_type allocator_type;
+    static_assert(
+        (std::is_same<typename allocator_type::value_type, value_type>::value),
+        "Alloc::value_type must be same type as value_type");
 
   public:
-    // Default constructor.
-    set(const key_compare& comp = key_compare(),
-        const allocator_type& alloc = allocator_type())
+    // Default constructors.
+    set() : super_type(key_compare(), allocator_type()) {}
+
+    explicit set(const key_compare& comp)
+        : super_type(comp, allocator_type()) {}
+
+    explicit set(const allocator_type& alloc)
+        : super_type(key_compare(), alloc) {}
+
+    explicit set(const key_compare& comp, const allocator_type& alloc)
         : super_type(comp, alloc) {}
 
     // Copy constructor.
@@ -112,7 +128,6 @@ template <typename Key, typename Compare = std::less<Key>,
 class multiset
     : public btree_multi_container<
           btree<btree_set_params<Key, Compare, Alloc, TargetNodeSize>>> {
-
     typedef multiset<Key, Compare, Alloc, TargetNodeSize> self_type;
     typedef btree_set_params<Key, Compare, Alloc, TargetNodeSize> params_type;
     typedef btree<params_type> btree_type;
@@ -123,10 +138,20 @@ class multiset
     typedef typename btree_type::allocator_type allocator_type;
 
   public:
-    // Default constructor.
-    multiset(const key_compare& comp = key_compare(),
-             const allocator_type& alloc = allocator_type())
+    // Default constructors.
+    multiset() : super_type(key_compare(), allocator_type()) {}
+
+    explicit multiset(const key_compare& comp)
+        : super_type(comp, allocator_type()) {}
+
+    explicit multiset(const allocator_type& alloc)
+        : super_type(key_compare(), alloc) {}
+
+    explicit multiset(const key_compare& comp, const allocator_type& alloc)
         : super_type(comp, alloc) {}
+
+    // Copy constructor.
+    multiset(const self_type& x) : super_type(x) {}
 
     // Copy constructor.
     multiset(const self_type& x) : super_type(x) {}
