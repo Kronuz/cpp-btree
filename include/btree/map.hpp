@@ -26,12 +26,12 @@
 
 #pragma once
 
-#ifndef BTREE_MAP_H__
-#define BTREE_MAP_H__
+#ifndef BTREE_MAP_HPP
+#define BTREE_MAP_HPP
 
 #include <stdexcept>
 
-#include "btree.h"
+#include "btree.hpp"
 
 namespace btree {
 
@@ -305,4 +305,4 @@ inline void swap(btree::multimap<K, V, C, A, N>& x,
     x.swap(y);
 }
 
-#endif // BTREE_MAP_H__
+#endif // BTREE_MAP_HPP

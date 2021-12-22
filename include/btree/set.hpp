@@ -26,10 +26,10 @@
 
 #pragma once
 
-#ifndef BTREE_SET_H__
-#define BTREE_SET_H__
+#ifndef BTREE_SET_HPP
+#define BTREE_SET_HPP
 
-#include "btree.h"
+#include "btree.hpp"
 
 namespace btree {
 
@@ -210,4 +210,4 @@ inline void swap(btree::multiset<K, C, A, N>& x,
     x.swap(y);
 }
 
-#endif // BTREE_SET_H__
+#endif // BTREE_SET_HPP

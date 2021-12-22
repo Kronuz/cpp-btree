@@ -1,0 +1,8 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/include
+
+Name: btree
+Description: B-tree map and set container implementations
+Version: @btree_VERSION@
+Cflags: -I${includedir}

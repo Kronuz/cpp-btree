@@ -1,0 +1,15 @@
+cmake_minimum_required(VERSION 2.8.2)
+project(doctest-download NONE)
+
+include(ExternalProject)
+ExternalProject_Add(doctest
+    GIT_REPOSITORY    https://github.com/onqtam/doctest.git
+    GIT_TAG           1.2.7
+    SOURCE_DIR        "${CMAKE_CURRENT_BINARY_DIR}/doctest-src"
+    BINARY_DIR        "${CMAKE_CURRENT_BINARY_DIR}/doctest-build"
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND     ""
+    INSTALL_COMMAND   ""
+    TEST_COMMAND      ""
+)
+

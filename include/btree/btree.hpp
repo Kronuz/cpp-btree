@@ -60,8 +60,8 @@
 
 #pragma once
 
-#ifndef BTREE_BTREE_H__
-#define BTREE_BTREE_H__
+#ifndef BTREE_BTREE_HPP
+#define BTREE_BTREE_HPP
 
 #include <assert.h>
 #include <stddef.h>
@@ -3029,4 +3029,4 @@ class btree_multi_container : public btree_container<Tree> {
 
 } // namespace btree
 
-#endif // BTREE_BTREE_H__
+#endif // BTREE_BTREE_HPP
