@@ -26,6 +26,7 @@ endif()
 set(${PROJECT_NAME}_TEST_TARGET test_${PROJECT_NAME})
 
 
+add_subdirectory("rapidcheck")
 
 # all tests
 set(${PROJECT_NAME}_TESTS
@@ -40,6 +41,8 @@ add_executable( ${${PROJECT_NAME}_TEST_TARGET}
 target_include_directories(  ${${PROJECT_NAME}_TEST_TARGET} PRIVATE 
     "$<BUILD_INTERFACE:${DOCTEST_INCLUDE_DIR}>"
 )
+
+target_link_libraries( ${${PROJECT_NAME}_TEST_TARGET} rapidcheck)
 
 add_custom_target(cpp-test COMMAND ${${PROJECT_NAME}_TEST_TARGET}  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/test" )
 add_dependencies(cpp-test ${${PROJECT_NAME}_TEST_TARGET} )
