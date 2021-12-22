@@ -1,0 +1,4 @@
+{
+    "editor.renderWhitespace": "trailing",
+    "editor.formatOnSave": true,
+}
