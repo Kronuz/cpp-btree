@@ -30,3 +30,17 @@
 *.exe
 *.out
 *.app
+
+# Visual Studio
+.vs/
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ll]og/
+[Ll]ogs/
+out/
