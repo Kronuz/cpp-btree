@@ -920,7 +920,11 @@ private:
 		// destroy_value() (see its matching assert).
 		assert(memcmp(zero_value, v, sizeof(value_type)) == 0);
 
+#if __cplusplus > 201703L
+		std::construct_at(v, std::forward<Args>(args)...);
+#else
 		new (v) value_type(std::forward<Args>(args)...);
+#endif
 		// FIXME: The above should use allocator_traits, but allocator
 		// object is not available here at the nodes, is in the tree:
 		// allocator_type& alloc = allocator();
@@ -935,7 +939,7 @@ private:
 	}
 
 	void destroy_value(value_type* v) {
-		v->~value_type();
+		std::destroy_at(v);
 		// FIXME: The above should use allocator_traits, but allocator
 		// object is not available here at the nodes, is in the tree:
 		// allocator_type& alloc = allocator();
