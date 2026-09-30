@@ -199,6 +199,14 @@ struct btree_key_compare_to_tag { };
 template <typename Compare>
 struct btree_is_key_compare_to : public std::is_convertible<Compare, btree_key_compare_to_tag> { };
 
+// Detects a comparator with a nested `is_transparent` type (e.g.
+// std::less<>), matching std::map/std::set's own heterogeneous-lookup
+// convention.
+template <typename Compare, typename = void>
+struct btree_is_transparent : std::false_type { };
+template <typename Compare>
+struct btree_is_transparent<Compare, std::void_t<typename Compare::is_transparent>> : std::true_type { };
+
 // A helper class to convert a boolean comparison into a three-way
 // "compare-to" comparison that returns a negative value to indicate
 // less-than, zero to indicate equality and a positive value to
@@ -750,12 +758,34 @@ public:
 		return search_type::upper_bound(k, *this, comp);
 	}
 
+	// Heterogeneous lower_bound (see btree_is_transparent), used only by
+	// find/count/contains -- not upper_bound/equal_range.
+	template <typename K, typename Compare, typename = std::enable_if_t<btree_is_transparent<Compare>::value>>
+	int lower_bound(const K& k, const Compare& comp) const {
+		return std::is_integral<key_type>::value || std::is_floating_point<key_type>::value
+			? linear_search_plain_compare(k, 0, count(), comp)
+			: binary_search_plain_compare(k, 0, count(), comp);
+	}
+
 	// Returns the position of the first value whose key is not less than k
 	// using linear search performed using plain compare.
 	template <typename Compare>
 	int linear_search_plain_compare(const key_type& k, int s, int e, const Compare& comp) const {
 		while (s < e) {
 			if (!btree_compare_keys(comp, key(s), k)) {
+				break;
+			}
+			++s;
+		}
+		return s;
+	}
+
+	// Heterogeneous sibling: K need not be key_type; calls comp(...)
+	// directly (a transparent Compare is always a plain boolean functor).
+	template <typename K, typename Compare>
+	int linear_search_plain_compare(const K& k, int s, int e, const Compare& comp) const {
+		while (s < e) {
+			if (!comp(key(s), k)) {
 				break;
 			}
 			++s;
@@ -786,6 +816,20 @@ public:
 		while (s != e) {
 			int mid = (s + e) / 2;
 			if (btree_compare_keys(comp, key(mid), k)) {
+				s = mid + 1;
+			} else {
+				e = mid;
+			}
+		}
+		return s;
+	}
+
+	// Heterogeneous sibling of linear_search_plain_compare above.
+	template <typename K, typename Compare>
+	int binary_search_plain_compare(const K& k, int s, int e, const Compare& comp) const {
+		while (s != e) {
+			int mid = (s + e) / 2;
+			if (comp(key(mid), k)) {
 				s = mid + 1;
 			} else {
 				e = mid;
@@ -901,7 +945,9 @@ private:
 		// allocator_type& alloc = allocator();
 		// allocator_traits::destroy(alloc, v);
 
-		assert(memcpy(v, zero_value, sizeof(value_type)));
+		// Not an assert: wrapping the zeroing in assert() meant NDEBUG
+		// builds silently skipped it (memcpy's return is always truthy).
+		memcpy(v, zero_value, sizeof(value_type));
 	}
 
 	void destroy_value(int i) {
@@ -1409,6 +1455,17 @@ public:
 		return internal_end(internal_find_multi(key, const_iterator(root(), 0)));
 	}
 
+	// Heterogeneous find/count (see btree_is_transparent), equality lookup
+	// only -- not find_multi/lower_bound/upper_bound/equal_range.
+	template <typename K, typename C = key_compare>
+	std::enable_if_t<btree_is_transparent<C>::value, iterator> find_unique(const K& key) {
+		return internal_end(internal_find_unique_hetero(key, iterator(root(), 0)));
+	}
+	template <typename K, typename C = key_compare>
+	std::enable_if_t<btree_is_transparent<C>::value, const_iterator> find_unique(const K& key) const {
+		return internal_end(internal_find_unique_hetero(key, const_iterator(root(), 0)));
+	}
+
 	// Returns a count of the number of times the key appears in the btree.
 	size_type count_unique(const key_type& key) const {
 		const_iterator begin = internal_find_unique(key, const_iterator(root(), 0));
@@ -1417,6 +1474,10 @@ public:
 			return 0;
 		}
 		return 1;
+	}
+	template <typename K, typename C = key_compare>
+	std::enable_if_t<btree_is_transparent<C>::value, size_type> count_unique(const K& key) const {
+		return internal_find_unique_hetero(key, const_iterator(root(), 0)).node ? 1 : 0;
 	}
 	// Returns a count of the number of times the key appears in the btree.
 	size_type count_multi(const key_type& key) const {
@@ -1691,6 +1752,25 @@ private:
 	// Internal routine which implements find_unique().
 	template <typename IterType>
 	IterType internal_find_unique(const key_type& key, IterType iter) const;
+
+	// Heterogeneous find_unique(): always the plain-compare loop.
+	template <typename K, typename IterType>
+	IterType internal_find_unique_hetero(const K& key, IterType iter) const {
+		if (iter.node) {
+			for (;;) {
+				iter.position = iter.node->lower_bound(key, key_comp()) & kMatchMask;
+				if (iter.node->is_leaf()) {
+					break;
+				}
+				iter.node = iter.node->child(iter.position);
+			}
+			iter = internal_last(iter);
+			if (iter.node && !key_comp()(key, iter.key())) {
+				return iter;
+			}
+		}
+		return IterType(nullptr, 0);
+	}
 
 	// Internal routine which implements find_multi().
 	template <typename IterType>
@@ -2950,6 +3030,27 @@ public:
 	}
 	#if __cplusplus > 201703L
 		bool contains(const key_type& key) const {
+			return find(key) != this->end();
+		}
+	#endif
+
+	// Heterogeneous lookup (see btree_is_transparent): opt in via
+	// std::less<> instead of the default std::less<key_type>.
+	template <typename K, typename C = key_compare>
+	std::enable_if_t<btree_is_transparent<C>::value, iterator> find(const K& key) {
+		return this->__tree.find_unique(key);
+	}
+	template <typename K, typename C = key_compare>
+	std::enable_if_t<btree_is_transparent<C>::value, const_iterator> find(const K& key) const {
+		return this->__tree.find_unique(key);
+	}
+	template <typename K, typename C = key_compare>
+	std::enable_if_t<btree_is_transparent<C>::value, size_type> count(const K& key) const {
+		return this->__tree.count_unique(key);
+	}
+	#if __cplusplus > 201703L
+		template <typename K, typename C = key_compare>
+		std::enable_if_t<btree_is_transparent<C>::value, bool> contains(const K& key) const {
 			return find(key) != this->end();
 		}
 	#endif
