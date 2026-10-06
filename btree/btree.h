@@ -637,15 +637,10 @@ public:
 		return fields_.children[i];
 	}
 
-#ifndef NDEBUG
-	void reset_child(int i) {
-		assert(!is_leaf());
-		fields_.children[i] = nullptr;
-	}
-#else
+	// Inactive child slots have no invariant. Keeping their state independent
+	// of NDEBUG avoids coupling inline mutations to a caller's build mode.
 	void reset_child(int) {
 	}
-#endif
 
 	void set_child(int i, btree_node* c) {
 		assert(!is_leaf());
@@ -708,9 +703,6 @@ public:
 		x->fields_.children[j] = c;
 		c->fields_.position = j;
 		c->fields_.parent = x;
-#ifndef NDEBUG
-		fields_.children[i] = nullptr;
-#endif
 	}
 
 	// Move child i in this node to child i in node x.
@@ -722,9 +714,6 @@ public:
 		auto c = fields_.children[i];
 		x->fields_.children[i] = c;
 		c->fields_.parent = x;
-#ifndef NDEBUG
-		fields_.children[i] = nullptr;
-#endif
 	}
 
 	// Move child i to child j.
@@ -735,9 +724,6 @@ public:
 		auto c = fields_.children[i];
 		fields_.children[j] = c;
 		c->fields_.position = j;
-#ifndef NDEBUG
-		fields_.children[i] = nullptr;
-#endif
 	}
 
 	// Returns the position of the first value whose key is not less than k.
@@ -886,15 +872,12 @@ public:
 		f->max_count = max_count;
 		f->count = 0;
 		f->parent = parent;
-		// Zeroed so construct_value's assert can detect double-construct.
-		assert(memset(&f->values, 0, max_count * sizeof(value_type)));
 		return n;
 	}
 
 	static btree_node* init_internal(internal_fields* f, btree_node* parent) {
 		btree_node* n = init_leaf(f, parent, kNodeValues);
 		f->leaf = 0;
-		assert(memset(f->children, 0, sizeof(f->children)));
 		return n;
 	}
 
@@ -912,14 +895,8 @@ public:
 	}
 
 private:
-	static constexpr const char zero_value[sizeof(value_type)] = {};
-
 	template <typename... Args>
 	void construct_value(value_type* v, Args&&... args) {
-		// Non-zero here means a double-construct without an intervening
-		// destroy_value() (see its matching assert).
-		assert(memcmp(zero_value, v, sizeof(value_type)) == 0);
-
 #if __cplusplus > 201703L
 		std::construct_at(v, std::forward<Args>(args)...);
 #else
@@ -944,10 +921,6 @@ private:
 		// object is not available here at the nodes, is in the tree:
 		// allocator_type& alloc = allocator();
 		// allocator_traits::destroy(alloc, v);
-
-		// Debug-only (see construct_value's matching assert); NDEBUG
-		// builds skip the zeroing cost, not just its check.
-		assert(memcpy(v, zero_value, sizeof(value_type)));
 	}
 
 	void destroy_value(int i) {
@@ -2801,9 +2774,6 @@ int btree<P>::internal_verify(const node_type* node, const key_type* lo, const k
 			count += internal_verify(node->child(i),
 				(i == 0) ? lo : &node->key(i - 1),
 				(i == node->count()) ? hi : &node->key(i));
-		}
-		for (int i = node->count() + 1; i <= node->max_count(); ++i) {
-			assert(node->child(i) == nullptr);
 		}
 	}
 	return count;

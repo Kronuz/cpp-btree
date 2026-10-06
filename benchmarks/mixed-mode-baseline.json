@@ -1,0 +1,144 @@
+{
+  "baseline": "f90c2bf",
+  "platform": "Intel macOS; LLVM Clang -O3; C++20; single-process map<string,string>",
+  "workload": "65536 keys; four cycles of shuffled insertion and erase; key setup excluded",
+  "qualification": {
+    "linux_native": "16 build-mode/language/link-order cases passed",
+    "linux_sanitizers": "16 cases passed under Clang 18 ASan/UBSan",
+    "detent_state": "macOS native and ASan/UBSan, Linux native; independent canonical decoder and disposal tests"
+  },
+  "limits": [
+    "Three paired samples, no concurrent builds or tests; order and host effects remain.",
+    "The Release benchmark's complete disassembled text matches byte-for-byte before and after (otool -tV, excluding the filename header). Timing variation is not attributed to this correction.",
+    "No speedup, fleet capacity, cost or power claim; public object layout and active-slot invariants are unchanged.",
+    "Executable byte sizes apply only to this synthetic benchmark and include compiler paths and diagnostic strings; they do not establish daemon footprint."
+  ],
+  "samples": [
+    {
+      "phase": "before",
+      "mode": "release",
+      "sample": 1,
+      "measurement": {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 706.394
+      }
+    },
+    {
+      "phase": "after",
+      "mode": "release",
+      "sample": 1,
+      "measurement": {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 610.462
+      }
+    },
+    {
+      "phase": "before",
+      "mode": "debug",
+      "sample": 1,
+      "measurement": {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 661.148
+      }
+    },
+    {
+      "phase": "after",
+      "mode": "debug",
+      "sample": 1,
+      "measurement": {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 664.69
+      }
+    },
+    {
+      "phase": "before",
+      "mode": "release",
+      "sample": 2,
+      "measurement": {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 662.305
+      }
+    },
+    {
+      "phase": "after",
+      "mode": "release",
+      "sample": 2,
+      "measurement": {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 613.863
+      }
+    },
+    {
+      "phase": "before",
+      "mode": "debug",
+      "sample": 2,
+      "measurement": {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 695.232
+      }
+    },
+    {
+      "phase": "after",
+      "mode": "debug",
+      "sample": 2,
+      "measurement": {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 664.758
+      }
+    },
+    {
+      "phase": "before",
+      "mode": "release",
+      "sample": 3,
+      "measurement": {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 622.436
+      }
+    },
+    {
+      "phase": "after",
+      "mode": "release",
+      "sample": 3,
+      "measurement": {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 634.751
+      }
+    },
+    {
+      "phase": "before",
+      "mode": "debug",
+      "sample": 3,
+      "measurement": {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 764.113
+      }
+    },
+    {
+      "phase": "after",
+      "mode": "debug",
+      "sample": 3,
+      "measurement": {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 677.676
+      }
+    }
+  ],
+  "executable_bytes": {
+    "release_before": 30672,
+    "release_after": 30672,
+    "debug_before": 37176,
+    "debug_after": 36608
+  }
+}

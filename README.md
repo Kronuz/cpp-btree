@@ -34,3 +34,7 @@ may account for a **significant speedup** in accessing large containers.
 The C++ B-tree containers are not without drawbacks, however. Unlike the
 standard STL containers, modifying a C++ B-tree container
 **invalidates all outstanding iterators** on that container.
+
+Run `sh tests/run_mixed_mode.sh` to check release/debug translation-unit combinations in both link orders under C++17 and C++20. Set `CXX=clang++ BTREE_TEST_SANITIZE=1` for ASan/UBSan. The regression exercises insertion, split, erase, merge, clear, verification and destruction with tracked nontrivial values. Inactive value storage and child slots are unspecified; diagnostics check active entries and child links without requiring debug-only zeroing. This removes coupling through diagnostic slot state, rather than promising compatibility for arbitrary compiler, allocator or standard-library configurations.
+
+The [recorded comparison](benchmarks/mixed-mode-baseline.json) contains 16 native and 16 ASan/UBSan Linux regression cases and three local before/after benchmark pairs. Compile `benchmarks/mutation_bench.cc` with `-std=c++20 -O3`, the chosen include tree, and either `-DNDEBUG` or `-UNDEBUG`. The Release benchmark's disassembled text is identical before and after; timing variation is not attributed to this correction. No performance improvement is claimed.
