@@ -1,40 +1,71 @@
-# C++ B-tree
+# cpp-btree
 
-Code in this repository is based on
-[Google's B-tree implementation](https://code.google.com/archive/p/cpp-btree/).
+![C++17](https://img.shields.io/badge/C%2B%2B-17%20%7C%2020-blue.svg)
+![Header-only](https://img.shields.io/badge/header--only-yes-green.svg)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-C++ B-tree is a template library that implements ordered in-memory containers
-based on a B-tree data structure. Similar to the STL `std::map`, `std::set`,
-`std::multimap`, and `std::multiset` templates, this library provides
-`btree::map`, `btree::set`, `btree::multimap` and `btree::multiset`.
+`std::map` and `std::set`, but B-trees: in-memory ordered containers that use a
+fraction of the memory and fewer cache misses. Based on
+[Google's C++ B-tree](https://code.google.com/archive/p/cpp-btree/), modernized to
+behave like the C++17 standard containers.
 
-This difers from the original project by Google in that containers behave more
-like modern STL (C++17) and are an almost drop-in replacements (except for the
-iterator invalidation, see below); including support for `emplace` and
-`try_emplace` as well as values in the map not needing to have a default
-constructor.
+## ✨ Highlights
 
-C++ B-tree containers have a few advantages compared with the standard
-containers, which are typically implemented using Red-Black trees. Nodes in a
-Red-Black tree require three pointers per entry (plus 1 bit), whereas B-trees
-on average make use of fewer than one pointer per entry, leading to
-**significant memory savings**. For example, a `set<int32_t>` has an overhead
-of 16 bytes for every 4 byte set element (on a 32-bit operating system); the
-corresponding `btree::set<int32_t>` has an overhead of around 1 byte per set
-element.
+- 🧠 **Less memory**: about 1 byte of overhead per `int32_t` in `btree::set`, against
+  16 bytes for a red-black tree node on a 32-bit system.
+- ⚡ **Cache-friendly**: several key comparisons per node, so large containers
+  search faster.
+- 🔁 **Near drop-in**: `btree::map`, `set`, `multimap`, and `multiset` with
+  `emplace`, `try_emplace`, heterogeneous lookup, and values that need no default
+  constructor.
+- ⚠️ **One difference**: any insert or erase invalidates every iterator into the
+  container.
 
-B-trees are widely known as data structures for secondary storage, because they
-keep disk seeks to a minimum. For an in-memory data structure, the same property
-yields a performance boost by keeping cache-line misses to a minimum. C++ B-tree
-containers make better use of the cache by performing multiple key-comparisons
-per node when searching the tree. Although B-tree algorithms are more complex,
-compared with the Red-Black tree algorithms, the improvement in cache behavior
-may account for a **significant speedup** in accessing large containers.
+## 📦 Installation
 
-The C++ B-tree containers are not without drawbacks, however. Unlike the
-standard STL containers, modifying a C++ B-tree container
-**invalidates all outstanding iterators** on that container.
+Header-only and dependency-free: copy the `btree/` directory onto your include path.
+It builds as C++17 or C++20.
 
-Run `sh tests/run_mixed_mode.sh` to check release/debug translation-unit combinations in both link orders under C++17 and C++20. Set `CXX=clang++ BTREE_TEST_SANITIZE=1` for ASan/UBSan. The regression exercises insertion, split, erase, merge, clear, verification and destruction with tracked nontrivial values. Inactive value storage and child slots are unspecified; diagnostics check active entries and child links without requiring debug-only zeroing. This removes coupling through diagnostic slot state, rather than promising compatibility for arbitrary compiler, allocator or standard-library configurations.
+## 🚀 Quick start
 
-The [recorded comparison](benchmarks/mixed-mode-baseline.json) contains 16 native and 16 ASan/UBSan Linux regression cases and three local before/after benchmark pairs. Compile `benchmarks/mutation_bench.cc` with `-std=c++20 -O3`, the chosen include tree, and either `-DNDEBUG` or `-UNDEBUG`. The Release benchmark's disassembled text is identical before and after; timing variation is not attributed to this correction. No performance improvement is claimed.
+```cpp
+#include "btree/map.h"
+
+#include <cassert>
+#include <string>
+
+int main() {
+	btree::map<int, std::string> m;
+	m.emplace(2, "two");
+	m.try_emplace(1, "one");
+	assert(m.begin()->second == "one");   // ordered, like std::map
+	assert(m.count(2) == 1);
+}
+```
+
+## 🎯 When to use it
+
+- ✅ Large ordered maps and sets where memory or lookup speed matters.
+- ❌ Code that keeps iterators or references across inserts and erases: use
+  `std::map`.
+
+## 📚 Documentation
+
+- [docs/TESTING.md](docs/TESTING.md): the mixed-mode regression script, sanitizers,
+  and the recorded benchmark comparison.
+
+## 🛠️ Testing
+
+```sh
+sh tests/run_mixed_mode.sh                         # release/debug TU mixes, C++17 and C++20
+CXX=clang++ BTREE_TEST_SANITIZE=1 sh tests/run_mixed_mode.sh   # with ASan and UBSan
+```
+
+## 🤝 Contributing
+
+Issues and pull requests are welcome.
+
+## 📄 License
+
+Apache 2.0. See [LICENSE](LICENSE). Copyright (c) 2013 Google Inc. and (c) 2019
+Germán Méndez Bravo.
