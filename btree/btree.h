@@ -110,6 +110,8 @@
 #include <sys/types.h>
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <iosfwd>
 #include <iostream>
@@ -119,6 +121,7 @@
 #include <new>
 #include <ostream>
 #include <string>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
@@ -434,9 +437,8 @@ struct btree_binary_search_compare_to {
 	}
 };
 
-// A node in the btree holding. The same node type is used for both internal
-// and leaf nodes in the btree, though the nodes are allocated in such a way
-// that the children array is only valid in internal nodes.
+// Nodes contain a complete fixed header and separately constructed trailing
+// slots. Short roots allocate only their current value capacity.
 template <typename Params>
 class btree_node {
 public:
@@ -507,6 +509,7 @@ public:
 		kMatchMask = kExactMatch - 1,
 	};
 
+	// Size descriptors only; compact allocations never contain these objects.
 	struct leaf_fields : public base_fields {
 		// The array of values. Only the first count of these values have been
 		// constructed and are valid.
@@ -524,6 +527,46 @@ public:
 		btree_node* rightmost;
 		size_type size;
 	};
+	struct root_metadata {
+		btree_node* rightmost;
+		size_type size;
+	};
+	struct alignas(alignof(value_type)) aligned_allocation_unit { unsigned char byte; };
+	using allocation_unit = std::conditional_t<(alignof(value_type) <= alignof(std::max_align_t)),
+		char, aligned_allocation_unit>;
+
+	static constexpr std::size_t add_size(std::size_t left, std::size_t right) {
+		if (right > std::numeric_limits<std::size_t>::max() - left)
+			throw std::length_error("btree node size overflow");
+		return left + right;
+	}
+	static constexpr std::size_t align_size(std::size_t bytes, std::size_t alignment) {
+		return add_size(bytes, alignment - 1) & ~(alignment - 1);
+	}
+	static constexpr std::size_t values_offset() {
+		return align_size(sizeof(base_fields), alignof(value_type));
+	}
+	static constexpr std::size_t leaf_size(std::size_t capacity) {
+		if (capacity > (std::numeric_limits<std::size_t>::max() - values_offset()) / sizeof(value_type))
+			throw std::length_error("btree node size overflow");
+		return values_offset() + capacity * sizeof(value_type);
+	}
+	static constexpr std::size_t children_offset() {
+		return align_size(leaf_size(kNodeValues), alignof(btree_node*));
+	}
+	static constexpr std::size_t internal_size() {
+		return add_size(children_offset(), (std::size_t(kNodeValues) + 1) * sizeof(btree_node*));
+	}
+	static constexpr std::size_t root_offset() {
+		return align_size(internal_size(), alignof(root_metadata));
+	}
+	static constexpr std::size_t root_size() { return add_size(root_offset(), sizeof(root_metadata)); }
+	static constexpr std::size_t allocation_count(std::size_t bytes) {
+		return align_size(bytes, sizeof(allocation_unit)) / sizeof(allocation_unit);
+	}
+	static constexpr std::size_t allocation_size(std::size_t bytes) {
+		return allocation_count(bytes) * sizeof(allocation_unit);
+	}
 
 public:
 	// Getter/setter for whether this is a leaf node or not. This value doesn't
@@ -567,74 +610,74 @@ public:
 
 	// Getter for the rightmost root node field. Only valid on the root node.
 	btree_node* rightmost() const {
-		return fields_.rightmost;
+		return root_data().rightmost;
 	}
 	btree_node*& __rightmost() {
-		return fields_.rightmost;
+		return root_data().rightmost;
 	}
 
 	// Getter for the size root node field. Only valid on the root node.
 	size_type size() const {
-		return fields_.size;
+		return root_data().size;
 	}
 	size_type& __size() {
-		return fields_.size;
+		return root_data().size;
 	}
 
 	// Getters for the key/value at position i in the node.
 	const key_type& key(int i) const {
-		return params_type::get_key(fields_.values[i]);
+		return params_type::get_key(slot_value(i));
 	}
 	reference value(int i) {
-		return reinterpret_cast<reference>(fields_.values[i]);
+		return reinterpret_cast<reference>(slot_value(i));
 	}
 	const_reference value(int i) const {
-		return reinterpret_cast<const_reference>(fields_.values[i]);
+		return reinterpret_cast<const_reference>(slot_value(i));
 	}
 
 	// Swap value i in this node with value j in node x.
 	void swap_value(int i, btree_node* x, int j) {
 		assert(x != this || i != j);
-		params_type::swap(fields_.values[i], x->fields_.values[j]);
+		params_type::swap(slot_value(i), x->slot_value(j));
 	}
 
 	// Swap value i in this node with value i in node x.
 	void swap_value(int i, btree_node* x) {
 		assert(x != this);
-		params_type::swap(fields_.values[i], x->fields_.values[i]);
+		params_type::swap(slot_value(i), x->slot_value(i));
 	}
 
 	// Swap value i with value j.
 	void swap_value(int i, int j) {
 		assert(i != j);
-		params_type::swap(fields_.values[i], fields_.values[j]);
+		params_type::swap(slot_value(i), slot_value(j));
 	}
 
 	// Move value i in this node to value j in node x.
 	void move_value(int i, btree_node* x, int j) {
 		assert(x != this || i != j);
-		x->construct_value(j, std::move(fields_.values[i]));
+		x->construct_value(j, std::move(slot_value(i)));
 		destroy_value(i);
 	}
 
 	// Move value i in this node to value i in node x.
 	void move_value(int i, btree_node* x) {
 		assert(x != this);
-		x->construct_value(i, std::move(fields_.values[i]));
+		x->construct_value(i, std::move(slot_value(i)));
 		destroy_value(i);
 	}
 
 	// Move value i to value j.
 	void move_value(int i, int j) {
 		assert(i != j);
-		construct_value(j, std::move(fields_.values[i]));
+		construct_value(j, std::move(slot_value(i)));
 		destroy_value(i);
 	}
 
 	// Getters/setter for the child at position i in the node.
 	btree_node* child(int i) const {
 		assert(!is_leaf());
-		return fields_.children[i];
+		return slot_child(i);
 	}
 
 	// Inactive child slots have no invariant. Keeping their state independent
@@ -645,7 +688,7 @@ public:
 	void set_child(int i, btree_node* c) {
 		assert(!is_leaf());
 		assert(c != nullptr);
-		fields_.children[i] = c;
+		slot_child(i) = c;
 		c->fields_.parent = this;
 		c->fields_.position = i;
 	}
@@ -655,10 +698,10 @@ public:
 		assert(x != this || i != j);
 		assert(!is_leaf());
 		assert(!x->is_leaf());
-		assert(fields_.children[i] != nullptr);
-		assert(x->fields_.children[j] != nullptr);
-		auto& a = fields_.children[i];
-		auto& b = x->fields_.children[j];
+		assert(slot_child(i) != nullptr);
+		assert(x->slot_child(j) != nullptr);
+		auto& a = slot_child(i);
+		auto& b = x->slot_child(j);
 		btree_swap_helper(a, b);
 		a->fields_.parent = this;
 		a->fields_.position = i;
@@ -671,10 +714,10 @@ public:
 		assert(x != this);
 		assert(!is_leaf());
 		assert(!x->is_leaf());
-		assert(fields_.children[i] != nullptr);
-		assert(x->fields_.children[i] != nullptr);
-		auto& a = fields_.children[i];
-		auto& b = x->fields_.children[i];
+		assert(slot_child(i) != nullptr);
+		assert(x->slot_child(i) != nullptr);
+		auto& a = slot_child(i);
+		auto& b = x->slot_child(i);
 		btree_swap_helper(a, b);
 		a->fields_.parent = this;
 		b->fields_.parent = x;
@@ -684,10 +727,10 @@ public:
 	void swap_child(int i, int j) {
 		assert(i != j);
 		assert(!is_leaf());
-		assert(fields_.children[i] != nullptr);
-		assert(fields_.children[j] != nullptr);
-		auto& a = fields_.children[i];
-		auto& b = fields_.children[j];
+		assert(slot_child(i) != nullptr);
+		assert(slot_child(j) != nullptr);
+		auto& a = slot_child(i);
+		auto& b = slot_child(j);
 		btree_swap_helper(a, b);
 		a->fields_.position = i;
 		b->fields_.position = j;
@@ -698,9 +741,9 @@ public:
 		assert(x != this || i != j);
 		assert(!is_leaf());
 		assert(!x->is_leaf());
-		assert(fields_.children[i] != nullptr);
-		auto c = fields_.children[i];
-		x->fields_.children[j] = c;
+		assert(slot_child(i) != nullptr);
+		auto c = slot_child(i);
+		x->slot_child(j) = c;
 		c->fields_.position = j;
 		c->fields_.parent = x;
 	}
@@ -710,9 +753,9 @@ public:
 		assert(x != this);
 		assert(!is_leaf());
 		assert(!x->is_leaf());
-		assert(fields_.children[i] != nullptr);
-		auto c = fields_.children[i];
-		x->fields_.children[i] = c;
+		assert(slot_child(i) != nullptr);
+		auto c = slot_child(i);
+		x->slot_child(i) = c;
 		c->fields_.parent = x;
 	}
 
@@ -720,9 +763,9 @@ public:
 	void move_child(int i, int j) {
 		assert(i != j);
 		assert(!is_leaf());
-		assert(fields_.children[i] != nullptr);
-		auto c = fields_.children[i];
-		fields_.children[j] = c;
+		assert(slot_child(i) != nullptr);
+		auto c = slot_child(i);
+		slot_child(j) = c;
 		c->fields_.position = j;
 	}
 
@@ -865,26 +908,21 @@ public:
 	void swap(btree_node* src);
 
 	// Node allocation/deletion routines.
-	static btree_node* init_leaf(leaf_fields* f, btree_node* parent, int max_count) {
-		btree_node* n = reinterpret_cast<btree_node*>(f);
-		f->leaf = 1;
-		f->position = 0;
-		f->max_count = max_count;
-		f->count = 0;
-		f->parent = parent;
+	static btree_node* init_leaf(void* storage, btree_node* parent, int max_count) {
+		return ::new (storage) btree_node(parent, max_count);
+	}
+
+	static btree_node* init_internal(void* storage, btree_node* parent) {
+		btree_node* n = init_leaf(storage, parent, kNodeValues);
+		n->fields_.leaf = false;
+		for (int i = 0; i <= kNodeValues; ++i)
+			::new (static_cast<void*>(n->child_slot(i))) btree_node*;
 		return n;
 	}
 
-	static btree_node* init_internal(internal_fields* f, btree_node* parent) {
-		btree_node* n = init_leaf(f, parent, kNodeValues);
-		f->leaf = 0;
-		return n;
-	}
-
-	static btree_node* init_root(root_fields* f, btree_node* parent) {
-		btree_node* n = init_internal(f, parent);
-		f->rightmost = parent;
-		f->size = parent->count();
+	static btree_node* init_root(void* storage, btree_node* parent) {
+		btree_node* n = init_internal(storage, parent);
+		::new (static_cast<void*>(n->storage() + root_offset())) root_metadata{parent, parent->count()};
 		return n;
 	}
 
@@ -895,6 +933,33 @@ public:
 	}
 
 private:
+	btree_node(btree_node* parent, int capacity)
+		: fields_{true, 0, static_cast<typename base_fields::field_type>(capacity), 0, parent} {}
+	char* storage() { return reinterpret_cast<char*>(this); }
+	const char* storage() const { return reinterpret_cast<const char*>(this); }
+	value_type* value_slot(int i) {
+		return reinterpret_cast<value_type*>(storage() + values_offset() + std::size_t(i) * sizeof(value_type));
+	}
+	const value_type* value_slot(int i) const {
+		return reinterpret_cast<const value_type*>(storage() + values_offset() + std::size_t(i) * sizeof(value_type));
+	}
+	value_type& slot_value(int i) { return *std::launder(value_slot(i)); }
+	const value_type& slot_value(int i) const { return *std::launder(value_slot(i)); }
+	btree_node** child_slot(int i) {
+		return reinterpret_cast<btree_node**>(storage() + children_offset() + std::size_t(i) * sizeof(btree_node*));
+	}
+	btree_node* const* child_slot(int i) const {
+		return reinterpret_cast<btree_node* const*>(storage() + children_offset() + std::size_t(i) * sizeof(btree_node*));
+	}
+	btree_node*& slot_child(int i) { return *std::launder(child_slot(i)); }
+	btree_node* const& slot_child(int i) const { return *std::launder(child_slot(i)); }
+	root_metadata& root_data() {
+		return *std::launder(reinterpret_cast<root_metadata*>(storage() + root_offset()));
+	}
+	const root_metadata& root_data() const {
+		return *std::launder(reinterpret_cast<const root_metadata*>(storage() + root_offset()));
+	}
+
 	template <typename... Args>
 	void construct_value(value_type* v, Args&&... args) {
 #if __cplusplus > 201703L
@@ -912,7 +977,7 @@ private:
 	void construct_value(int i, Args&&... args) {
 		assert(i >= 0);
 		assert(i < fields_.max_count);
-		construct_value(&fields_.values[i], std::forward<Args>(args)...);
+		construct_value(value_slot(i), std::forward<Args>(args)...);
 	}
 
 	void destroy_value(value_type* v) {
@@ -926,11 +991,11 @@ private:
 	void destroy_value(int i) {
 		assert(i >= 0);
 		assert(i < fields_.max_count);
-		destroy_value(&fields_.values[i]);
+		destroy_value(std::launder(value_slot(i)));
 	}
 
 private:
-	root_fields fields_;
+	base_fields fields_;
 
 private:
 	btree_node(const btree_node&);
@@ -1139,8 +1204,8 @@ public:
 
 	typedef typename Params::allocator_type allocator_type;
 	typedef typename Params::allocator_traits allocator_traits;
-	typedef typename Params::internal_allocator_type internal_allocator_type;
-	typedef typename Params::internal_allocator_traits internal_allocator_traits;
+	typedef typename allocator_traits::template rebind_alloc<typename node_type::allocation_unit> internal_allocator_type;
+	typedef std::allocator_traits<internal_allocator_type> internal_allocator_traits;
 
 public:
 	// Default constructor.
@@ -1541,14 +1606,15 @@ public:
 	// The total number of bytes used by the btree.
 	size_type bytes_used() const {
 		node_stats stats = internal_stats(root());
+		if (!root()) return sizeof(*this);
 		if (stats.leaf_nodes == 1 && stats.internal_nodes == 0) {
 			return sizeof(*this) +
-					sizeof(base_fields) + root()->max_count() * sizeof(value_type);
+					node_type::allocation_size(node_type::leaf_size(root()->max_count()));
 		} else {
 			return sizeof(*this) +
-					sizeof(root_fields) - sizeof(internal_fields) +
-					stats.leaf_nodes * sizeof(leaf_fields) +
-					stats.internal_nodes * sizeof(internal_fields);
+					node_type::allocation_size(node_type::root_size()) - node_type::allocation_size(node_type::internal_size()) +
+					stats.leaf_nodes * node_type::allocation_size(node_type::leaf_size(kNodeValues)) +
+					stats.internal_nodes * node_type::allocation_size(node_type::internal_size());
 		}
 	}
 
@@ -1557,7 +1623,7 @@ public:
 		// Returns the number of bytes per value on a leaf node that is 75%
 		// full. Experimentally, this matches up nicely with the computed number of
 		// bytes per value in trees that had their values inserted in random order.
-		return sizeof(leaf_fields) / (kNodeValues * 0.75);
+		return node_type::allocation_size(node_type::leaf_size(kNodeValues)) / (kNodeValues * 0.75);
 	}
 
 	// The fullness of the btree. Computed as the number of elements in the btree
@@ -1626,41 +1692,46 @@ private:
 	}
 
 	// Node creation/deletion routines.
+	void* allocate_node(std::size_t bytes) {
+		static_assert(sizeof(node_type) == sizeof(base_fields), "node header contains trailing storage");
+		auto& ia = __internal_allocator();
+		auto count = node_type::allocation_count(bytes);
+		auto storage = internal_allocator_traits::allocate(ia, count);
+		constexpr auto alignment = alignof(value_type) > alignof(node_type) ? alignof(value_type) : alignof(node_type);
+		if (reinterpret_cast<std::uintptr_t>(storage) % alignment) {
+			internal_allocator_traits::deallocate(ia, storage, count);
+			throw std::bad_alloc();
+		}
+		return storage;
+	}
+	void deallocate_node(node_type* node, std::size_t bytes) {
+		node->destroy();
+		std::destroy_at(node);
+		internal_allocator_traits::deallocate(__internal_allocator(),
+			reinterpret_cast<typename node_type::allocation_unit*>(node), node_type::allocation_count(bytes));
+	}
 	node_type* new_internal_node(node_type* parent) {
-		internal_allocator_type& ia = __internal_allocator();
-		internal_fields* p = reinterpret_cast<internal_fields*>(internal_allocator_traits::allocate(ia, sizeof(internal_fields)));
-		return node_type::init_internal(p, parent);
+		return node_type::init_internal(allocate_node(node_type::internal_size()), parent);
 	}
 	node_type* new_internal_root_node() {
-		internal_allocator_type& ia = __internal_allocator();
-		root_fields* p = reinterpret_cast<root_fields*>(internal_allocator_traits::allocate(ia, sizeof(root_fields)));
-		return node_type::init_root(p, root()->get_parent());
+		return node_type::init_root(allocate_node(node_type::root_size()), root()->get_parent());
 	}
 	node_type* new_leaf_node(node_type* parent) {
-		internal_allocator_type& ia = __internal_allocator();
-		leaf_fields* p = reinterpret_cast<leaf_fields*>(internal_allocator_traits::allocate(ia, sizeof(leaf_fields)));
-		return node_type::init_leaf(p, parent, kNodeValues);
+		return node_type::init_leaf(allocate_node(node_type::leaf_size(kNodeValues)), parent, kNodeValues);
 	}
 	node_type* new_leaf_root_node(int max_count) {
-		internal_allocator_type& ia = __internal_allocator();
-		leaf_fields* p = reinterpret_cast<leaf_fields*>(internal_allocator_traits::allocate(ia, sizeof(base_fields) + max_count * sizeof(value_type)));
-		return node_type::init_leaf(p, reinterpret_cast<node_type*>(p), max_count);
+		void* storage = allocate_node(node_type::leaf_size(max_count));
+		return node_type::init_leaf(storage, static_cast<node_type*>(storage), max_count);
 	}
 	void delete_internal_node(node_type* node) {
-		node->destroy();
 		assert(node != root());
-		internal_allocator_type& ia = __internal_allocator();
-		internal_allocator_traits::deallocate(ia, reinterpret_cast<char*>(node), sizeof(internal_fields));
+		deallocate_node(node, node_type::internal_size());
 	}
 	void delete_internal_root_node() {
-		root()->destroy();
-		internal_allocator_type& ia = __internal_allocator();
-		internal_allocator_traits::deallocate(ia, reinterpret_cast<char*>(root()), sizeof(root_fields));
+		deallocate_node(root(), node_type::root_size());
 	}
 	void delete_leaf_node(node_type* node) {
-		node->destroy();
-		internal_allocator_type& ia = __internal_allocator();
-		internal_allocator_traits::deallocate(ia, reinterpret_cast<char*>(node), sizeof(base_fields) + node->max_count() * sizeof(value_type));
+		deallocate_node(node, node_type::leaf_size(node->max_count()));
 	}
 
 	// Rebalances or splits the node iter points to.

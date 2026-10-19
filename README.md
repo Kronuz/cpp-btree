@@ -53,12 +53,16 @@ int main() {
 
 - [docs/TESTING.md](docs/TESTING.md): the mixed-mode regression script, sanitizers,
   and the recorded benchmark comparison.
+- [docs/NODE_LAYOUT.md](docs/NODE_LAYOUT.md): compact node storage, slot lifetimes,
+  alignment and allocator compatibility.
 
 ## 🛠️ Testing
 
 ```sh
 sh tests/run_mixed_mode.sh                         # release/debug TU mixes, C++17 and C++20
 CXX=clang++ BTREE_TEST_SANITIZE=1 sh tests/run_mixed_mode.sh   # with ASan and UBSan
+sh tests/run_layout.sh                             # compact roots and counting allocators
+CXX=clang++ BTREE_TEST_SANITIZE=1 sh tests/run_layout.sh
 ```
 
 ## 🤝 Contributing

@@ -1,0 +1,448 @@
+{
+  "schema": 1,
+  "date": "2026-10-18",
+  "component": "compact node layout",
+  "base_revision": "dbe7557b000cb8eddfcf991d12fc16f8d994a49f",
+  "corrected_header_sha256": "b8c68cb395aa8783a159029f9cc0d6c8de41b7f71d954dc5d0c610d756d19885",
+  "layout_fixture_sha256": "444e95fc87472d2ed07357786086b175ef751e20854940da6da5ee29e7b0f538",
+  "short_root_fixture_sha256": "204b5cc1a151fc7b09ed8b88fe5de1d84e0598dec935846ddcd2fa651654cbce",
+  "commands": {
+    "layout_native": "CXX=clang++ sh tests/run_layout.sh",
+    "layout_sanitized": "CXX=clang++ BTREE_TEST_SANITIZE=1 BTREE_TEST_BUILD=.scratch/node-layout-asan sh tests/run_layout.sh",
+    "mixed_native": "CXX=clang++ sh tests/run_mixed_mode.sh",
+    "mixed_sanitized": "CXX=clang++ BTREE_TEST_SANITIZE=1 sh tests/run_mixed_mode.sh",
+    "short_root_compile": "clang++ -std=c++20 -O1 -g -DNDEBUG -fsanitize=address,undefined,object-size,pointer-overflow -fno-sanitize-recover=all -fno-omit-frame-pointer -I INCLUDE_ROOT tests/short_root_repro.cc -o OUTPUT"
+  },
+  "layout_standards": [
+    17,
+    20
+  ],
+  "layout_modes": [
+    "release (-DNDEBUG)",
+    "debug (-UNDEBUG)"
+  ],
+  "layout_sanitizers": [
+    "address",
+    "undefined",
+    "object-size",
+    "pointer-overflow"
+  ],
+  "layout_sanitizer_recovery": false,
+  "platforms": [
+    {
+      "platform": "macOS x86_64 (Darwin 24.6.0)",
+      "compiler": "Homebrew clang 23.1.2",
+      "native_layout_cases": 4,
+      "sanitized_layout_cases": 4,
+      "checks_per_layout_case": 21428,
+      "native_mixed_cases": 16,
+      "sanitized_mixed_cases": 16,
+      "exit_status": 0
+    },
+    {
+      "platform": "Ubuntu 24.04 x86_64 (Linux 6.8.0-147-generic)",
+      "compiler": "Ubuntu clang 18.1.3 (1ubuntu1)",
+      "native_layout_cases": 4,
+      "sanitized_layout_cases": 4,
+      "checks_per_layout_case": 21428,
+      "native_mixed_cases": 16,
+      "sanitized_mixed_cases": 16,
+      "exit_status": 0
+    },
+    {
+      "platform": "FreeBSD 14.4-RELEASE-p10 amd64",
+      "compiler": "FreeBSD clang 19.1.7",
+      "native_layout_cases": 4,
+      "sanitized_layout_cases": 4,
+      "checks_per_layout_case": 21428,
+      "native_mixed_cases": 16,
+      "sanitized_mixed_cases": 16,
+      "exit_status": 0
+    }
+  ],
+  "original_reproduction": {
+    "platform": "macOS",
+    "fixture": "tests/short_root_repro.cc",
+    "public_api_only": true,
+    "original_exit_status": 134,
+    "original_diagnostic": "btree/btree.h:870:3: upcast with insufficient space for leaf_fields",
+    "corrected_exit_status": 0,
+    "identical_flags": true
+  },
+  "measurement": {
+    "status": "completed under exclusive quiet hold, October 19",
+    "mutation_source": "benchmarks/mutation_bench.cc",
+    "footprint_source": "benchmarks/node_footprint.cc",
+    "before_after_flags_identical": true,
+    "mutation_flags": "-std=c++20 -O3 -DNDEBUG",
+    "footprint_flags": "-std=c++20 -O2 -DNDEBUG",
+    "pairs": 5,
+    "order": "before/after on even pairs; after/before on odd pairs",
+    "before": [
+      {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 262.002
+      },
+      {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 268.482
+      },
+      {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 288.965
+      },
+      {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 275.518
+      },
+      {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 253.538
+      }
+    ],
+    "after": [
+      {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 264.488
+      },
+      {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 262.676
+      },
+      {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 284.027
+      },
+      {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 269.63
+      },
+      {
+        "entries": 65536,
+        "cycles": 4,
+        "process_cpu_ms": 287.429
+      }
+    ],
+    "median_before_cpu_ms": 268.482,
+    "median_after_cpu_ms": 269.63,
+    "median_cpu_change_percent": 0.42758918661212064,
+    "paired_cpu_change_percent": [
+      0.9488477187197031,
+      -2.1625285866464172,
+      -1.7088574740885543,
+      -2.137065454888598,
+      13.36722700344719
+    ],
+    "before_footprint": [
+      {
+        "case": "int_set",
+        "entries": 0,
+        "node_bytes": 0,
+        "peak_node_bytes": 0,
+        "allocations": 0,
+        "deallocations": 0,
+        "reported_node_bytes": 16
+      },
+      {
+        "case": "int_set",
+        "entries": 1,
+        "node_bytes": 20,
+        "peak_node_bytes": 20,
+        "allocations": 1,
+        "deallocations": 0,
+        "reported_node_bytes": 20
+      },
+      {
+        "case": "int_set",
+        "entries": 2,
+        "node_bytes": 24,
+        "peak_node_bytes": 44,
+        "allocations": 2,
+        "deallocations": 1,
+        "reported_node_bytes": 24
+      },
+      {
+        "case": "int_set",
+        "entries": 3,
+        "node_bytes": 32,
+        "peak_node_bytes": 56,
+        "allocations": 3,
+        "deallocations": 2,
+        "reported_node_bytes": 32
+      },
+      {
+        "case": "int_set",
+        "entries": 4,
+        "node_bytes": 32,
+        "peak_node_bytes": 56,
+        "allocations": 3,
+        "deallocations": 2,
+        "reported_node_bytes": 32
+      },
+      {
+        "case": "int_set",
+        "entries": 4096,
+        "node_bytes": 19656,
+        "peak_node_bytes": 19656,
+        "allocations": 77,
+        "deallocations": 6,
+        "reported_node_bytes": 19656
+      },
+      {
+        "case": "int_set",
+        "entries": 0,
+        "node_bytes": 0,
+        "peak_node_bytes": 19656,
+        "allocations": 77,
+        "deallocations": 77,
+        "reported_node_bytes": 16
+      },
+      {
+        "case": "string_map",
+        "entries": 0,
+        "node_bytes": 0,
+        "peak_node_bytes": 0,
+        "allocations": 0,
+        "deallocations": 0,
+        "reported_node_bytes": 16
+      },
+      {
+        "case": "string_map",
+        "entries": 1,
+        "node_bytes": 64,
+        "peak_node_bytes": 64,
+        "allocations": 1,
+        "deallocations": 0,
+        "reported_node_bytes": 64
+      },
+      {
+        "case": "string_map",
+        "entries": 2,
+        "node_bytes": 112,
+        "peak_node_bytes": 176,
+        "allocations": 2,
+        "deallocations": 1,
+        "reported_node_bytes": 112
+      },
+      {
+        "case": "string_map",
+        "entries": 3,
+        "node_bytes": 208,
+        "peak_node_bytes": 320,
+        "allocations": 3,
+        "deallocations": 2,
+        "reported_node_bytes": 208
+      },
+      {
+        "case": "string_map",
+        "entries": 4,
+        "node_bytes": 208,
+        "peak_node_bytes": 320,
+        "allocations": 3,
+        "deallocations": 2,
+        "reported_node_bytes": 208
+      },
+      {
+        "case": "string_map",
+        "entries": 4096,
+        "node_bytes": 216816,
+        "peak_node_bytes": 216816,
+        "allocations": 824,
+        "deallocations": 3,
+        "reported_node_bytes": 216816
+      },
+      {
+        "case": "string_map",
+        "entries": 0,
+        "node_bytes": 0,
+        "peak_node_bytes": 216816,
+        "allocations": 824,
+        "deallocations": 824,
+        "reported_node_bytes": 16
+      }
+    ],
+    "after_footprint": [
+      {
+        "case": "int_set",
+        "entries": 0,
+        "node_bytes": 0,
+        "peak_node_bytes": 0,
+        "allocations": 0,
+        "deallocations": 0,
+        "reported_node_bytes": 0
+      },
+      {
+        "case": "int_set",
+        "entries": 1,
+        "node_bytes": 20,
+        "peak_node_bytes": 20,
+        "allocations": 1,
+        "deallocations": 0,
+        "reported_node_bytes": 20
+      },
+      {
+        "case": "int_set",
+        "entries": 2,
+        "node_bytes": 24,
+        "peak_node_bytes": 44,
+        "allocations": 2,
+        "deallocations": 1,
+        "reported_node_bytes": 24
+      },
+      {
+        "case": "int_set",
+        "entries": 3,
+        "node_bytes": 32,
+        "peak_node_bytes": 56,
+        "allocations": 3,
+        "deallocations": 2,
+        "reported_node_bytes": 32
+      },
+      {
+        "case": "int_set",
+        "entries": 4,
+        "node_bytes": 32,
+        "peak_node_bytes": 56,
+        "allocations": 3,
+        "deallocations": 2,
+        "reported_node_bytes": 32
+      },
+      {
+        "case": "int_set",
+        "entries": 4096,
+        "node_bytes": 19656,
+        "peak_node_bytes": 19656,
+        "allocations": 77,
+        "deallocations": 6,
+        "reported_node_bytes": 19656
+      },
+      {
+        "case": "int_set",
+        "entries": 0,
+        "node_bytes": 0,
+        "peak_node_bytes": 19656,
+        "allocations": 77,
+        "deallocations": 77,
+        "reported_node_bytes": 0
+      },
+      {
+        "case": "string_map",
+        "entries": 0,
+        "node_bytes": 0,
+        "peak_node_bytes": 0,
+        "allocations": 0,
+        "deallocations": 0,
+        "reported_node_bytes": 0
+      },
+      {
+        "case": "string_map",
+        "entries": 1,
+        "node_bytes": 64,
+        "peak_node_bytes": 64,
+        "allocations": 1,
+        "deallocations": 0,
+        "reported_node_bytes": 64
+      },
+      {
+        "case": "string_map",
+        "entries": 2,
+        "node_bytes": 112,
+        "peak_node_bytes": 176,
+        "allocations": 2,
+        "deallocations": 1,
+        "reported_node_bytes": 112
+      },
+      {
+        "case": "string_map",
+        "entries": 3,
+        "node_bytes": 208,
+        "peak_node_bytes": 320,
+        "allocations": 3,
+        "deallocations": 2,
+        "reported_node_bytes": 208
+      },
+      {
+        "case": "string_map",
+        "entries": 4,
+        "node_bytes": 208,
+        "peak_node_bytes": 320,
+        "allocations": 3,
+        "deallocations": 2,
+        "reported_node_bytes": 208
+      },
+      {
+        "case": "string_map",
+        "entries": 4096,
+        "node_bytes": 216816,
+        "peak_node_bytes": 216816,
+        "allocations": 824,
+        "deallocations": 3,
+        "reported_node_bytes": 216816
+      },
+      {
+        "case": "string_map",
+        "entries": 0,
+        "node_bytes": 0,
+        "peak_node_bytes": 216816,
+        "allocations": 824,
+        "deallocations": 824,
+        "reported_node_bytes": 0
+      }
+    ],
+    "provenance": {
+      "completed": true,
+      "idle_checks_before": 3,
+      "binaries": {
+        "mutation-before": {
+          "sha256": "0d95e1b412d0dcd0b79aa6a43174034cc2bdfdfb84967e8917e16ad0ffacfc83",
+          "bytes": 30672
+        },
+        "mutation-after": {
+          "sha256": "b495e244b16b1cab25cffc8862b8742737e86943e986ba10539a3c8a33002ba9",
+          "bytes": 31376
+        },
+        "footprint-before": {
+          "sha256": "e41764de8bf653702cb4c18650733cc203deb1e74207b7b929288665590e2680",
+          "bytes": 31832
+        },
+        "footprint-after": {
+          "sha256": "1a6359043acf386f2561d631f7a5e7bc973c708b12a8ee6aa76a9b0e4354ef48",
+          "bytes": 33360
+        }
+      }
+    },
+    "caveats": [
+      "A prior ten-sample batch with competing compilation is invalidated and excluded.",
+      "The final batch waits for three idle process checks after acquiring its exclusive hold and checks for competing builds/tests before and after samples.",
+      "Five pairs are noisy: one pair changes by +13.37%; no statistical equivalence or performance improvement is claimed.",
+      "Identical allocation counts, live requests and peak node bytes in all 14 rows; empty node reporting corrects 16 nonexistent bytes to zero."
+    ]
+  },
+  "limits": [
+    "Manual qualification; this repository has no GitHub Actions workflow, and no CI run is triggered.",
+    "Downstream host qualification is separate from these library suites.",
+    "Header revisions require all C++ consumers to rebuild together.",
+    "Custom byte allocators must return storage aligned for both node header and values; insufficient alignment is rejected before construction.",
+    "The separate map const-key mutation issue is outside this compact-layout correction.",
+    "No performance improvement is claimed."
+  ],
+  "downstream": {
+    "application": "Detent host retained-envelope integration",
+    "macos_asan_ubsan": {
+      "tests": 3,
+      "passed": 3,
+      "seconds": 46.12,
+      "header_sha256": "b8c68cb395aa8783a159029f9cc0d6c8de41b7f71d954dc5d0c610d756d19885"
+    },
+    "application_source": "isolated host-resource-qualification checkout; production dependency pins unchanged"
+  }
+}
