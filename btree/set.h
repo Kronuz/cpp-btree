@@ -56,6 +56,10 @@ class set : public btree_unique_container<
 		: super_type(x) {
 	}
 
+	set(self_type&&) = default;
+	self_type& operator=(const self_type&) = default;
+	self_type& operator=(self_type&&) = default;
+
 	// Range constructor.
 	template <class InputIterator>
 	set(InputIterator b, InputIterator e,
@@ -132,6 +136,10 @@ class multiset : public btree_multi_container<
 	multiset(const self_type& x)
 		: super_type(x) {
 	}
+
+	multiset(self_type&&) = default;
+	self_type& operator=(const self_type&) = default;
+	self_type& operator=(self_type&&) = default;
 
 	// Range constructor.
 	template <class InputIterator>

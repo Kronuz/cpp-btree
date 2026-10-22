@@ -57,6 +57,10 @@ public:
 			: super_type(x) {
 	}
 
+	btree_map_container(self_type&&) = default;
+	self_type& operator=(const self_type&) = default;
+	self_type& operator=(self_type&&) = default;
+
 	// Range constructor.
 	template <class InputIterator>
 	btree_map_container(InputIterator b, InputIterator e,
@@ -152,6 +156,10 @@ public:
 		: super_type(x) {
 	}
 
+	map(self_type&&) = default;
+	self_type& operator=(const self_type&) = default;
+	self_type& operator=(self_type&&) = default;
+
 	// Range constructor.
 	template <class InputIterator>
 	map(InputIterator b, InputIterator e,
@@ -230,6 +238,10 @@ class multimap : public btree_multi_container<
 	multimap(const self_type& x)
 		: super_type(x) {
 	}
+
+	multimap(self_type&&) = default;
+	self_type& operator=(const self_type&) = default;
+	self_type& operator=(self_type&&) = default;
 
 	// Range constructor.
 	template <class InputIterator>

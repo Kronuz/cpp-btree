@@ -55,3 +55,9 @@ Nonfull middle insertion prepares incoming arguments before consuming originals.
 Scratch uses the configured target-node byte budget, checked against the actual combined storage size after an overflow-safe capacity check. Key storage has a counted prefix and global placement construction. Constructor selection is preserved through narrow member checks and guarded fallback; reference-valued maps and reference-element pairs take that fallback. Throwing-move types reuse the compact-growth replacement guard, with its documented basic recovery limits.
 
 The complete-heap fixture denies ordinary and aligned allocation from the first original mapped move and checks incoming refusal before consumption. Layout and mixed-mode qualification cover C++17/C++20 and both diagnostic modes. This repair does not change full-node split, promotion, rebalance or erase behavior.
+
+## Ownership moves
+
+Root links are node-relative, so moving ownership needs no traversal or reparenting. Copy comparator and internal-allocator state before transferring the root; a preparation failure leaves the source owning its nodes. Move assignment first clears the destination with its previous allocator, then adopts source state and root. A failed assignment leaves an empty destination. This retains the existing source-allocator adoption convention for unequal allocators.
+
+The moved source is empty and reusable, and transferred element addresses and node capacity remain unchanged. Self-move preserves contents; const rvalues copy. Conditional `noexcept` depends on comparator/internal-allocator copy operations, independently of value movement. Copy and member-swap behavior remain unchanged. Ownership moves do not repair structural mutation of const-key pairs.

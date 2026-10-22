@@ -215,18 +215,18 @@ struct btree_is_transparent<Compare, std::void_t<typename Compare::is_transparen
 // with common comparison functors.
 template <typename Compare>
 struct btree_key_compare_to_adapter : Compare {
-	btree_key_compare_to_adapter() { }
-	btree_key_compare_to_adapter(const Compare& c) : Compare(c) { }
-	btree_key_compare_to_adapter(const btree_key_compare_to_adapter<Compare>& c)
+	btree_key_compare_to_adapter() noexcept(std::is_nothrow_default_constructible<Compare>::value) { }
+	btree_key_compare_to_adapter(const Compare& c) noexcept(noexcept(Compare(c))) : Compare(c) { }
+	btree_key_compare_to_adapter(const btree_key_compare_to_adapter<Compare>& c) noexcept(noexcept(Compare(c)))
 		: Compare(c) {
 	}
 };
 
 template <>
 struct btree_key_compare_to_adapter<std::less<std::string>> : public btree_key_compare_to_tag {
-	btree_key_compare_to_adapter() { }
-	btree_key_compare_to_adapter(const std::less<std::string>&) { }
-	btree_key_compare_to_adapter(const btree_key_compare_to_adapter<std::less<std::string>>&) { }
+	btree_key_compare_to_adapter() noexcept { }
+	btree_key_compare_to_adapter(const std::less<std::string>&) noexcept { }
+	btree_key_compare_to_adapter(const btree_key_compare_to_adapter<std::less<std::string>>&) noexcept { }
 	int operator()(const std::string& a, const std::string& b) const {
 		return a.compare(b);
 	}
@@ -234,9 +234,9 @@ struct btree_key_compare_to_adapter<std::less<std::string>> : public btree_key_c
 
 template <>
 struct btree_key_compare_to_adapter<std::greater<std::string>> : public btree_key_compare_to_tag {
-	btree_key_compare_to_adapter() { }
-	btree_key_compare_to_adapter(const std::greater<std::string>&) { }
-	btree_key_compare_to_adapter(const btree_key_compare_to_adapter<std::greater<std::string>>&) { }
+	btree_key_compare_to_adapter() noexcept { }
+	btree_key_compare_to_adapter(const std::greater<std::string>&) noexcept { }
+	btree_key_compare_to_adapter(const btree_key_compare_to_adapter<std::greater<std::string>>&) noexcept { }
 	int operator()(const std::string& a, const std::string& b) const {
 		return b.compare(a);
 	}
@@ -1273,6 +1273,13 @@ public:
 	// Copy constructor.
 	btree(const self_type& x);
 
+	btree(self_type&& x) noexcept(std::is_nothrow_copy_constructible<key_compare>::value &&
+		std::is_nothrow_copy_constructible<internal_allocator_type>::value)
+		: key_compare(x.key_comp()), root_(x.internal_allocator(), nullptr) {
+		__root() = x.__root();
+		x.__root() = nullptr;
+	}
+
 	// Destructor.
 	~btree() {
 		clear();
@@ -1589,11 +1596,23 @@ public:
 
 	// Assign the contents of x to* this.
 	self_type& operator=(const self_type& x) {
-		if (&x == this) {
+		if (std::addressof(x) == this) {
 			// Don't copy onto ourselves.
 			return *this;
 		}
 		assign(x);
+		return *this;
+	}
+
+	self_type& operator=(self_type&& x) noexcept(std::is_nothrow_copy_assignable<key_compare>::value &&
+		std::is_nothrow_copy_assignable<internal_allocator_type>::value) {
+		if (std::addressof(x) != this) {
+			clear();
+			__key_comp() = x.key_comp();
+			__internal_allocator() = x.internal_allocator();
+			__root() = x.__root();
+			x.__root() = nullptr;
+		}
 		return *this;
 	}
 
@@ -3130,6 +3149,10 @@ public:
 		: __tree(x.__tree) {
 	}
 
+	btree_container(self_type&&) = default;
+	self_type& operator=(const self_type&) = default;
+	self_type& operator=(self_type&&) = default;
+
 	// Iterator routines.
 	iterator begin() {
 		return __tree.begin();
@@ -3296,6 +3319,10 @@ public:
 		: super_type(x) {
 	}
 
+	btree_unique_container(self_type&&) = default;
+	self_type& operator=(const self_type&) = default;
+	self_type& operator=(self_type&&) = default;
+
 	// Range constructor.
 	template <class InputIterator>
 	btree_unique_container(InputIterator b, InputIterator e,
@@ -3424,6 +3451,10 @@ class btree_multi_container : public btree_container<Tree> {
 	btree_multi_container(const self_type& x)
 		: super_type(x) {
 	}
+
+	btree_multi_container(self_type&&) = default;
+	self_type& operator=(const self_type&) = default;
+	self_type& operator=(self_type&&) = default;
 
 	// Range constructor.
 	template <class InputIterator>

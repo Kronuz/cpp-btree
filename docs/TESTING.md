@@ -30,7 +30,7 @@ All 14 footprint rows preserve actual allocation counts, peak requested bytes an
 
 The repository calls the shared cpp-libraries CMake workflow on pushes, pull requests, manual dispatch and nightly runs. Its matrix covers GCC and Clang on Linux x86_64, GCC on Linux ARM64, both macOS architectures, FreeBSD x86_64 and Linux ASan/UBSan with object-size and pointer-overflow checks. ThreadSanitizer is disabled because the containers expose no concurrent mutation API.
 
-CMake registers 20 tests: four C++17/C++20 release/debug layout profiles and sixteen mixed-mode combinations covering both object link orders. These build the same fixtures as the shell scripts. Global sanitizer and standard-library hardening flags reach all translation units. Every fixture uses runtime checks independent of `NDEBUG`. This matrix does not replace downstream publication-failure qualification or controlled performance comparisons.
+CMake registers 28 tests: four C++17/C++20 release/debug profiles each for layout, prepared insertion and ownership moves, plus sixteen mixed-mode combinations covering both object link orders. These build the same fixtures as the shell scripts. Global sanitizer and standard-library hardening flags reach all translation units. Every fixture uses runtime checks independent of `NDEBUG`. This matrix does not replace downstream publication-failure qualification or controlled performance comparisons.
 
 ```sh
 cmake -S . -B .scratch/cmake -DCMAKE_BUILD_TYPE=Release
