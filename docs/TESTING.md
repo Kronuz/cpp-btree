@@ -1,4 +1,4 @@
-# Testing cpp-btree
+# Testing btree
 
 Run `sh tests/run_mixed_mode.sh` to check release/debug translation-unit combinations in both link orders under C++17 and C++20. Set `CXX=clang++ BTREE_TEST_SANITIZE=1` for ASan/UBSan. The regression exercises insertion, split, erase, merge, clear, verification and destruction with tracked nontrivial values. Inactive value storage and child slots are unspecified; diagnostics check active entries and child links without requiring debug-only zeroing. This removes coupling through diagnostic slot state, rather than promising compatibility for arbitrary compiler, allocator or standard-library configurations.
 

@@ -1,6 +1,6 @@
-# cpp-btree
+# btree
 
-[![CI](https://github.com/Kronuz/cpp-btree/actions/workflows/ci.yml/badge.svg)](https://github.com/Kronuz/cpp-btree/actions/workflows/ci.yml)
+[![CI](https://github.com/Kronuz/btree/actions/workflows/ci.yml/badge.svg)](https://github.com/Kronuz/btree/actions/workflows/ci.yml)
 
 ![C++17](https://img.shields.io/badge/C%2B%2B-17%20%7C%2020-blue.svg)
 ![Header-only](https://img.shields.io/badge/header--only-yes-green.svg)
@@ -26,7 +26,7 @@ behave like the C++17 standard containers.
 ## 📦 Installation
 
 Header-only and dependency-free: copy the `btree/` directory onto your include path.
-It builds as C++17 or C++20. CMake consumers can use `add_subdirectory` or FetchContent and link `cpp_btree::cpp_btree`; tests build only when this repository is the top-level project.
+It builds as C++17 or C++20. CMake consumers can use `add_subdirectory` or FetchContent and link `btree::btree`; tests build only when this repository is the top-level project.
 
 ## 🚀 Quick start
 
@@ -87,3 +87,7 @@ Copies construct a compact ordered shape without key comparisons and release eve
 Known limitation: nested containers with non-default-constructible allocators can fail constructor-trait instantiation under Clang with libstdc++ 13 in C++20. The ordered-copy repair does not change constructor constraints; this remains a separate compatibility issue.
 
 Compact leaf-root growth constructs the incoming value first in its final replacement slot, then relocates existing values under counted ownership. Failed copying leaves original contents intact; throwing move-only mapped values can remain moved-from. After a destructive move of a noncopyable set key fails, the set becomes empty and reusable. Explicit moves from contained mapped arguments may consume them. Other insertion and erase paths retain their existing limitations.
+
+## Repository compatibility
+
+This repository was renamed from `Kronuz/cpp-btree` to `Kronuz/btree`. GitHub redirects old repository and clone URLs; the history and stars stay with this repository. Keep the old repository name unused to preserve those redirects. Header paths remain `btree/map.h` and `btree/set.h`. The original `cpp_btree::cpp_btree` CMake target remains an alias of the same interface target as `btree::btree`.

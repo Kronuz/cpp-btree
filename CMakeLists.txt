@@ -3,6 +3,7 @@ project(cpp_btree LANGUAGES CXX)
 
 add_library(cpp_btree INTERFACE)
 add_library(cpp_btree::cpp_btree ALIAS cpp_btree)
+add_library(btree::btree ALIAS cpp_btree)
 target_include_directories(cpp_btree INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_features(cpp_btree INTERFACE cxx_std_17)
 
