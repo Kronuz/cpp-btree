@@ -1,0 +1,20 @@
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 7 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ci:
+    uses: Kronuz/cpp-libraries/.github/workflows/cmake.yml@main
+    with:
+      # These containers provide no concurrent mutation API.
+      tsan: false
+      asan_cxx_flags: -O1 -fsanitize=object-size,pointer-overflow -fno-sanitize-recover=all

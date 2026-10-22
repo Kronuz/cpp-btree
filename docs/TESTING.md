@@ -20,8 +20,20 @@ clang++ -std=c++20 -O1 -g -DNDEBUG -I "$include_root" \
 
 Compile `benchmarks/node_footprint.cc` with `-std=c++20 -O2 -DNDEBUG` against each include root. It records actual node requests, peak requested bytes and matching deallocations for short roots and 4,096-entry integer sets/string maps, separately from the container's reported byte count. The shared counting state itself and mapped string allocations are outside these node totals. Use the existing mutation benchmark for CPU comparisons without counter instrumentation.
 
-The [compact layout record](../benchmarks/compact-layout-qualification.json) contains the October 18 manual qualification on macOS (Clang 23.1.2), Linux (Clang 18.1.3) and FreeBSD (Clang 19.1.7). Each platform passes four native and four sanitized layout cases, with 21,428 runtime checks per case, plus 16 native and 16 sanitized mixed-mode cases. The separate public-API probe fails against original `dbe7557` with UBSan's insufficient-space `leaf_fields` upcast diagnostic, and passes against the corrected header with identical flags. This repository has no GitHub Actions workflow; no CI run is triggered or claimed.
+The [compact layout record](../benchmarks/compact-layout-qualification.json) contains the October 18 manual qualification on macOS (Clang 23.1.2), Linux (Clang 18.1.3) and FreeBSD (Clang 19.1.7). Each platform passes four native and four sanitized layout cases, with 21,428 runtime checks per case, plus 16 native and 16 sanitized mixed-mode cases. The separate public-API probe fails against original `dbe7557` with UBSan's insufficient-space `leaf_fields` upcast diagnostic, and passes against the corrected header with identical flags. That manual record predates GitHub Actions integration; it is not an automated CI result.
 
 The corrected header passes all three downstream Detent host ASan/UBSan cases in 46.12 seconds. Five uncontended alternating mutation pairs record median process CPU of 268.482 ms before and 269.630 ms after (+0.43%); paired changes range from -2.16% to +13.37%. This sample does not establish equivalence or a performance improvement. An earlier batch with competing compilation is excluded.
 
 All 14 footprint rows preserve actual allocation counts, peak requested bytes and live node bytes. Empty containers now report zero node bytes, correcting 16 nonexistent bytes in the original report. The older mixed-mode comparison above does not qualify these layout changes.
+
+## Automated qualification
+
+The repository calls the shared cpp-libraries CMake workflow on pushes, pull requests, manual dispatch and nightly runs. Its matrix covers GCC and Clang on Linux x86_64, GCC on Linux ARM64, both macOS architectures, FreeBSD x86_64 and Linux ASan/UBSan with object-size and pointer-overflow checks. ThreadSanitizer is disabled because the containers expose no concurrent mutation API.
+
+CMake registers 20 tests: four C++17/C++20 release/debug layout profiles and sixteen mixed-mode combinations covering both object link orders. These build the same fixtures as the shell scripts. Global sanitizer and standard-library hardening flags reach all translation units. Every fixture uses runtime checks independent of `NDEBUG`. This matrix does not replace downstream publication-failure qualification or controlled performance comparisons.
+
+```sh
+cmake -S . -B .scratch/cmake -DCMAKE_BUILD_TYPE=Release
+cmake --build .scratch/cmake --parallel 4
+ctest --test-dir .scratch/cmake --output-on-failure --parallel 2
+```

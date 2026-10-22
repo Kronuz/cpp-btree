@@ -1,5 +1,7 @@
 # cpp-btree
 
+[![CI](https://github.com/Kronuz/cpp-btree/actions/workflows/ci.yml/badge.svg)](https://github.com/Kronuz/cpp-btree/actions/workflows/ci.yml)
+
 ![C++17](https://img.shields.io/badge/C%2B%2B-17%20%7C%2020-blue.svg)
 ![Header-only](https://img.shields.io/badge/header--only-yes-green.svg)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -24,7 +26,7 @@ behave like the C++17 standard containers.
 ## 📦 Installation
 
 Header-only and dependency-free: copy the `btree/` directory onto your include path.
-It builds as C++17 or C++20.
+It builds as C++17 or C++20. CMake consumers can use `add_subdirectory` or FetchContent and link `cpp_btree::cpp_btree`; tests build only when this repository is the top-level project.
 
 ## 🚀 Quick start
 
