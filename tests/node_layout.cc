@@ -1,9 +1,11 @@
 #include "btree/map.h"
 #include "btree/set.h"
+#include <algorithm>
 #include <cstdint>
 #include <iostream>
 #include <map>
 #include <memory>
+#include <new>
 #include <random>
 #include <set>
 #include <stdexcept>
@@ -535,6 +537,66 @@ void root_growth_failures() {
 		}
 	}
 }
+using NonfullPair = std::pair<const int, ThrowingValue>;
+using NonfullNode = btree::btree_node<btree::btree_map_params<int, ThrowingValue, RootOrder, CountingAllocator<NonfullPair>, 256>>;
+template <class Iterator>
+NonfullNode* nonfull_node(const Iterator& cursor, const Allocations& state) {
+	const auto address = reinterpret_cast<std::uintptr_t>(std::addressof(*cursor));
+	for (const auto& allocation : state.live) {
+		const auto start = reinterpret_cast<std::uintptr_t>(allocation.first);
+		if (address >= start && address - start < allocation.second.bytes)
+			return std::launder(static_cast<NonfullNode*>(allocation.first));
+	}
+	throw std::runtime_error("value outside tracked node allocation");
+}
+template <class Iterator>
+int nonfull_position(const Iterator& cursor, const Allocations& state) {
+	auto* node = nonfull_node(cursor, state);
+	for (int i = 0; i < node->count(); ++i)
+		if (std::addressof(node->value(i)) == std::addressof(*cursor)) return i;
+	throw std::runtime_error("value outside active node prefix");
+}
+void nonfull_append_failure() {
+	using Pair = std::pair<const int, ThrowingValue>;
+	using Tree = btree::map<int, ThrowingValue, RootOrder, CountingAllocator<Pair>>;
+	for (bool reverse : {false, true}) {
+		auto state = std::make_shared<Allocations>();
+		{
+			Tree values(RootOrder{reverse}, CountingAllocator<Pair>{state});
+			std::vector<int> keys;
+			for (int i = 0; i < 160; ++i) keys.push_back(i * 2);
+			std::mt19937 random(7106); std::shuffle(keys.begin(), keys.end(), random);
+			for (int key : keys) values.try_emplace(key, key);
+			bool covered = false;
+			for (auto entry = values.begin(); entry != values.end() && !covered; ++entry) {
+				if (!nonfull_node(entry, *state)->is_leaf() || nonfull_node(entry, *state)->is_root() || nonfull_position(entry, *state) != nonfull_node(entry, *state)->count() - 1 || nonfull_node(entry, *state)->count() == nonfull_node(entry, *state)->max_count()) continue;
+				const int key = entry->first + (reverse ? -1 : 1);
+				auto next = entry; ++next;
+				if (next != values.end() && nonfull_node(next, *state) == nonfull_node(entry, *state)) continue;
+				covered = true;
+				auto* original = nonfull_node(entry, *state);
+				ThrowingValue incoming(key);
+				const auto size = values.size();
+				const auto bytes = state->bytes, nodes = state->live.size();
+				const auto objects = ThrowingValue::live;
+				ThrowingValue::remaining = 0; state->remaining = 0;
+				bool refused = false;
+				try { values.try_emplace(key, incoming); } catch (const std::runtime_error&) { refused = true; }
+				ThrowingValue::remaining = -1;
+				if (values.size() != size) std::cerr << "refused nonfull append changes size " << size << " -> " << values.size() << "\n";
+				require(refused && values.size() == size && ThrowingValue::live == objects);
+				require(state->bytes == bytes && state->live.size() == nodes); values.verify();
+				auto inserted = values.try_emplace(key, incoming);
+				state->remaining = -1;
+				require(inserted.second && nonfull_node(inserted.first, *state) == original && values.size() == size + 1);
+				require(state->bytes == bytes && state->live.size() == nodes); values.verify();
+				break;
+			}
+			require(covered);
+		}
+		require(ThrowingValue::live.empty() && state->live.empty() && state->bytes == 0);
+	}
+}
 struct RootIncoming {
 	inline static bool refuse = false;
 	inline static int moves = 0;
@@ -755,6 +817,8 @@ int main(int argc, char** argv) {
 	try {
 		if (argc == 2 && std::string_view(argv[1]) == "--short-root-only") {
 			short_root_lifetime();
+		} else if (argc == 2 && std::string_view(argv[1]) == "--nonfull-append-only") {
+			nonfull_append_failure();
 		} else {
 			require(argc == 1);
 			short_root_lifetime(); compact_roots(); unpadded_leaf_extents(); move_only_values();
@@ -762,6 +826,7 @@ int main(int argc, char** argv) {
 			compact_copy_boundaries(); copy_failure_positions(); compact_copy_history();
 			assignment_allocation_failure_positions(); assignment_failure_positions();
 			nested_copy_failure_positions(); aligned_and_duplicate_copies();
+			nonfull_append_failure();
 			root_growth_failures(); root_growth_aliases(); root_growth_move_only_recovery(); root_growth_move_only_mapped();
 		}
 	}

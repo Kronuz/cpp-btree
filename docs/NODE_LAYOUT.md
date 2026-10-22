@@ -43,3 +43,7 @@ Copy failure releases all newly owned nodes and values while preserving the sour
 A full compact leaf root grows into one unpublished geometric-capacity replacement. Construct incoming arguments first at their final position to preserve contained lvalue aliases. A separate incoming flag covers that slot until the contiguous constructed prefix reaches it. Original values use `move_if_noexcept`; failure destroys any disjoint incoming value, the counted prefix and the exact replacement extent. Publish only after all values exist, then destroy the original root.
 
 Copyable values retain contents on failure when copied, and nonthrowing moves leave no later fallible transfer. Throwing move-only mapped values may remain moved-from with keys and topology valid. If a noncopyable set-key move is attempted and fails, clean the replacement then clear the original set canonically. Explicit contained mapped moves can consume their source; moving contained set keys is unsupported. This branch uses actual const-key values and no swaps, planner or scratch allocation; full-node splitting, nonfull insertion and erase are unchanged.
+
+## Nonfull insertion accounting
+
+An internal root increments its size only after nonfull leaf insertion succeeds. Incoming-constructor refusal on direct append preserves the previous size; retry can reuse the existing leaf without allocation. This does not change full-node split accounting or repair the shifting mechanism for middle insertion.

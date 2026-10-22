@@ -92,3 +92,5 @@ Compact leaf-root growth constructs the incoming value first in its final replac
 ## Repository compatibility
 
 This repository was renamed from `Kronuz/cpp-btree` to `Kronuz/btree`. GitHub redirects old repository and clone URLs; the history and stars stay with this repository. Keep the old repository name unused to preserve those redirects. Header paths remain `btree/map.h` and `btree/set.h`. The original `cpp_btree::cpp_btree` CMake target remains an alias of the same interface target as `btree::btree`.
+
+Nonfull leaf insertion publishes the internal-root size after successful value construction. Refused append leaves the previous size intact and retry reuses existing capacity. Full-node split failure and general mutation safety remain separate qualification work.

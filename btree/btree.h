@@ -2789,6 +2789,7 @@ btree<P>::internal_emplace(const_iterator hint, Args&&... args) {
 		--iter;
 		++iter.position;
 	}
+	bool update_size = false;
 	if (iter.node->count() == iter.node->max_count()) {
 		// Make room in the leaf for the new item.
 		if (iter.node->max_count() < kNodeValues) {
@@ -2800,10 +2801,11 @@ btree<P>::internal_emplace(const_iterator hint, Args&&... args) {
 			rebalance_or_split(iter);
 			++__size();
 		}
-	} else if (!root()->is_leaf()) {
-		++__size();
+	} else {
+		update_size = !root()->is_leaf();
 	}
 	iter.node->insert_value(iter.position, std::forward<Args>(args)...);
+	if (update_size) ++__size();
 	return iter;
 }
 
