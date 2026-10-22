@@ -8,17 +8,23 @@ test_compiler=${CXX:-c++}
 for standard in 17 20; do
     for mode in release debug; do
         case "$mode" in release) diagnostic=-DNDEBUG ;; debug) diagnostic=-UNDEBUG ;; esac
+        for fixture in node_layout prepared_commit; do
         output="$test_build/cxx$standard-$mode"
+        if [ "$fixture" = prepared_commit ]; then
+            if [ -n "${BTREE_TEST_CASE:-}" ]; then continue; fi
+            output="$output-commit"
+        fi
         if [ "${BTREE_TEST_SANITIZE:-0}" = 1 ]; then
-            "$test_compiler" -std=c++"$standard" -O1 -g -fsanitize=address,undefined,object-size,pointer-overflow -fno-sanitize-recover=all -fno-omit-frame-pointer "$diagnostic" -I "$test_include" "$test_root/tests/node_layout.cc" -o "$output"
+            "$test_compiler" -std=c++"$standard" -O1 -g -fsanitize=address,undefined,object-size,pointer-overflow -fno-sanitize-recover=all -fno-omit-frame-pointer "$diagnostic" -I "$test_include" "$test_root/tests/$fixture.cc" -o "$output"
         else
-            "$test_compiler" -std=c++"$standard" -O2 "$diagnostic" -I "$test_include" "$test_root/tests/node_layout.cc" -o "$output"
+            "$test_compiler" -std=c++"$standard" -O2 "$diagnostic" -I "$test_include" "$test_root/tests/$fixture.cc" -o "$output"
         fi
         if [ -n "${BTREE_TEST_CASE:-}" ]; then
             "$output" "$BTREE_TEST_CASE"
         else
             "$output"
         fi
-        printf 'PASS compact layout C++%s %s\n' "$standard" "$mode"
+        printf 'PASS %s C++%s %s\n' "$fixture" "$standard" "$mode"
+        done
     done
 done

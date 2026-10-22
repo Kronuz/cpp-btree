@@ -556,6 +556,78 @@ int nonfull_position(const Iterator& cursor, const Allocations& state) {
 		if (std::addressof(node->value(i)) == std::addressof(*cursor)) return i;
 	throw std::runtime_error("value outside active node prefix");
 }
+void nonfull_leaf_failures() {
+	using Pair = std::pair<const int, ThrowingValue>;
+	using Tree = btree::map<int, ThrowingValue, RootOrder, CountingAllocator<Pair>>;
+	for (bool reverse : {false, true}) for (int topology = 0; topology < 6; ++topology) {
+		bool covered = false;
+		for (unsigned seed = 0; seed < 64 && !covered; ++seed) {
+			auto state = std::make_shared<Allocations>();
+			{
+				Tree values(RootOrder{reverse}, CountingAllocator<Pair>{state});
+				const int count = topology == 0 ? 3 : 160;
+				std::vector<int> order;
+				for (int i = 0; i < count; ++i) order.push_back(i * 2);
+				std::mt19937 random(7106 + seed);
+				std::shuffle(order.begin(), order.end(), random);
+				for (int key : order) values.try_emplace(key, key);
+				auto first = nonfull_node(values.begin(), *state);
+				auto tail = values.end(); --tail;
+				auto last = nonfull_node(tail, *state);
+				for (int key = -1; key < count * 2 && !covered; key += 2) {
+					auto slot = values.lower_bound(key);
+					if (slot == values.end() || !nonfull_node(slot, *state)->is_leaf() || nonfull_position(slot, *state) == nonfull_node(slot, *state)->count() || nonfull_node(slot, *state)->count() == nonfull_node(slot, *state)->max_count()) continue;
+					auto* original = nonfull_node(slot, *state);
+					const bool root_leaf = original->is_root();
+					if ((topology == 0) != root_leaf) continue;
+					if (topology == 1 && original != first) continue;
+					if (topology == 2 && original != last) continue;
+					if (topology >= 3) {
+						if (original == first || original == last) continue;
+						const int child = original->position(), children = original->get_parent()->count();
+						if (topology == 3 && child != 0) continue;
+						if (topology == 4 && child != children) continue;
+						if (topology == 5 && (child == 0 || child == children)) continue;
+					}
+					covered = true;
+					ThrowingValue incoming(key);
+					const auto objects = ThrowingValue::live;
+					const auto bytes = state->bytes, nodes = state->live.size();
+					const int leaf_count = original->count();
+					std::vector<std::pair<int, int>> contents;
+					for (const auto& entry : values) contents.emplace_back(entry.first, entry.second.value);
+					auto unchanged = [&] {
+						require(values.size() == static_cast<std::size_t>(count));
+						auto expected = contents.begin();
+						for (const auto& entry : values) {
+							require(expected != contents.end() && entry.first == expected->first && entry.second.value == expected->second); ++expected;
+						}
+						require(expected == contents.end() && nonfull_node(values.begin(), *state) == first);
+						auto end = values.end(); --end; require(nonfull_node(end, *state) == last);
+						require(original->count() == leaf_count && ThrowingValue::live == objects && state->bytes == bytes && state->live.size() == nodes);
+						if (!root_leaf) require(original->get_parent()->child(original->position()) == original);
+						values.verify();
+					};
+					state->remaining = 0;
+					bool refused = false;
+					try { values.try_emplace(key, incoming); } catch (const std::bad_alloc&) { refused = true; }
+					state->remaining = -1; require(refused); unchanged();
+					for (int budget = 0; budget <= leaf_count + 1; ++budget) {
+						ThrowingValue::remaining = budget; refused = false;
+						try { values.try_emplace(key, incoming); } catch (const std::runtime_error&) { refused = true; }
+						ThrowingValue::remaining = -1;
+						require(refused == (budget < leaf_count + 1));
+						if (refused) unchanged();
+					}
+					values.verify(); require(values.size() == static_cast<std::size_t>(count + 1));
+					require(values.at(key).value == key);
+				}
+			}
+			require(ThrowingValue::live.empty() && state->live.empty() && state->bytes == 0);
+		}
+		require(covered);
+	}
+}
 void nonfull_append_failure() {
 	using Pair = std::pair<const int, ThrowingValue>;
 	using Tree = btree::map<int, ThrowingValue, RootOrder, CountingAllocator<Pair>>;
@@ -800,6 +872,189 @@ void range_insertions() {
 	unique_map.verify(); multi_map.verify(); unique_set.verify(); multi_set.verify();
 	require(unique_map.size() == 3 && multi_map.size() == 3 && unique_set.size() == 3 && multi_set.size() == 3);
 }
+struct PreparedKey {
+	inline static int copies = -1;
+	inline static int live = 0;
+	inline static Allocations* deny = nullptr;
+	int value;
+	explicit PreparedKey(int v) : value(v) { ++live; }
+	PreparedKey(const PreparedKey& other) : value(other.value) {
+		if (copies == 0) throw std::runtime_error("prepared key copy");
+		if (copies > 0) --copies;
+		++live;
+	}
+	PreparedKey(PreparedKey&& other) noexcept : value(other.value) {
+		other.value = -999; ++live;
+		if (deny) deny->fail = true;
+	}
+	PreparedKey& operator=(const PreparedKey& other) { value = other.value; return *this; }
+	PreparedKey& operator=(PreparedKey&& other) noexcept { value = other.value; other.value = -999; return *this; }
+	~PreparedKey() { --live; }
+};
+struct PreparedCompare {
+	bool reverse = false;
+	bool operator()(const PreparedKey& a, const PreparedKey& b) const {
+		return reverse ? a.value > b.value : a.value < b.value;
+	}
+};
+void prepared_key_failures() {
+	using Pair = std::pair<const PreparedKey, int>;
+	using Params = btree::btree_map_params<PreparedKey, int, PreparedCompare, CountingAllocator<Pair>, 256>;
+	using Node = btree::btree_node<Params>;
+	using Tree = btree::map<PreparedKey, int, PreparedCompare, CountingAllocator<Pair>>;
+	static_assert(std::is_nothrow_move_constructible<PreparedKey>::value);
+	static_assert(!std::is_nothrow_copy_constructible<PreparedKey>::value);
+	for (bool reverse : {false, true}) for (int count : {3, 160}) {
+		int covered = 0;
+		for (int key = -1; key < count * 2; key += 2) {
+			auto state = std::make_shared<Allocations>();
+			{
+				Tree values(PreparedCompare{reverse}, CountingAllocator<Pair>{state});
+				std::vector<int> order;
+				for (int i = 0; i < count; ++i) order.push_back(i * 2);
+				std::mt19937 random(1093); std::shuffle(order.begin(), order.end(), random);
+				for (int item : order) values.try_emplace(PreparedKey(item), item);
+				auto cursor = values.lower_bound(PreparedKey(key));
+				if (cursor == values.end()) continue;
+				Node* node = nullptr;
+				int position = -1;
+				auto address = reinterpret_cast<std::uintptr_t>(std::addressof(*cursor));
+				for (const auto& allocation : state->live) {
+					auto begin = reinterpret_cast<std::uintptr_t>(allocation.first);
+					if (address >= begin && address < begin + allocation.second.bytes) node = std::launder(static_cast<Node*>(allocation.first));
+				}
+				require(node != nullptr);
+				if (!node->is_leaf() || node->count() == node->max_count()) continue;
+				for (int i = 0; i < node->count(); ++i) if (std::addressof(node->value(i)) == std::addressof(*cursor)) position = i;
+				require(position >= 0);
+				++covered;
+				std::vector<std::pair<int,int>> contents;
+				for (const auto& entry : values) contents.emplace_back(entry.first.value, entry.second);
+				const auto bytes = state->bytes, calls = state->requests.size();
+				const auto objects = PreparedKey::live;
+				for (int budget = 0; budget < node->count() - position; ++budget) {
+					PreparedKey::copies = budget;
+					bool refused = false;
+					try { values.try_emplace(PreparedKey(key), key); }
+					catch (const std::runtime_error& error) { require(std::string_view(error.what()) == "prepared key copy"); refused = true; }
+					PreparedKey::copies = -1;
+					require(refused && PreparedKey::live == objects && state->bytes == bytes && state->requests.size() == calls);
+					require(values.size() == contents.size());
+					auto expected = contents.begin();
+					for (const auto& entry : values) { require(entry.first.value == expected->first && entry.second == expected->second); ++expected; }
+					values.verify();
+				}
+				PreparedKey::deny = state.get();
+				auto inserted = values.try_emplace(PreparedKey(key), key);
+				PreparedKey::deny = nullptr; state->fail = false;
+				require(inserted.second && inserted.first->first.value == key && inserted.first->second == key);
+				require(state->requests.size() == calls && state->bytes == bytes && values.size() == static_cast<std::size_t>(count + 1));
+				values.verify();
+			}
+			require(PreparedKey::live == 0 && state->live.empty() && state->bytes == 0);
+		}
+		require(covered > 0);
+	}
+	btree::map<int, std::string> values;
+	values.emplace(0, "zero"); values.emplace(4, "four"); values.emplace(8, "eight");
+	values.try_emplace(2, values.at(4));
+	require(values.at(2) == "four" && values.at(4) == "four");
+	std::pair<int, std::string> pair{3, "three"};
+	values.emplace(pair); require(pair.second == "three" && values.at(3) == "three");
+	values.emplace(std::pair<int, std::string>{5, "five"});
+	values.emplace(std::piecewise_construct, std::forward_as_tuple(6), std::forward_as_tuple(3, 'x'));
+	require(values.at(5) == "five" && values.at(6) == "xxx"); values.verify();
+}
+
+struct ForwardedValue {
+	int value;
+	explicit ForwardedValue(int v) : value(v) {}
+	ForwardedValue(const ForwardedValue&) = default;
+	ForwardedValue(ForwardedValue&& other) noexcept : value(other.value) { other.value = -1; }
+	ForwardedValue(const ForwardedValue&&) = delete;
+	ForwardedValue& operator=(const ForwardedValue&) = default;
+	ForwardedValue& operator=(ForwardedValue&&) = default;
+};
+struct PlacementKey {
+	int value;
+	explicit PlacementKey(int v) : value(v) {}
+	PlacementKey(const PlacementKey& other) noexcept(false) : value(other.value) {}
+	PlacementKey(PlacementKey&&) noexcept = default;
+	PlacementKey& operator=(const PlacementKey&) = default;
+	PlacementKey& operator=(PlacementKey&&) = default;
+	static void* operator new(std::size_t) = delete;
+	bool operator<(const PlacementKey& other) const { return value < other.value; }
+};
+struct BudgetKey {
+	unsigned char bytes[3];
+	explicit BudgetKey(unsigned char value) : bytes{value, 0, 0} {}
+	BudgetKey(const BudgetKey& other) noexcept(false) : bytes{other.bytes[0], 0, 0} {}
+	BudgetKey(BudgetKey&&) noexcept = default;
+	BudgetKey& operator=(const BudgetKey&) = default;
+	BudgetKey& operator=(BudgetKey&&) = default;
+	bool operator<(const BudgetKey& other) const { return bytes[0] < other.bytes[0]; }
+};
+struct BudgetMapped {
+	unsigned char bytes[243]{};
+	explicit BudgetMapped(unsigned char v) { bytes[0] = v; }
+};
+void prepared_forwarding() {
+	for (int form = 0; form < 4; ++form) {
+		btree::map<int, ForwardedValue> values;
+		for (int key : {0, 4, 8}) values.emplace(key, ForwardedValue(key));
+		const ForwardedValue input(2);
+		if (form == 0) values.emplace(2, std::move(input));
+		if (form == 1) {
+			const std::pair<int, ForwardedValue> pair{2, ForwardedValue(2)};
+			values.emplace(std::move(pair));
+		}
+		if (form == 2) {
+			std::pair<int, const ForwardedValue> pair{2, ForwardedValue(2)};
+			values.emplace(std::move(pair));
+		}
+		if (form == 3) {
+			int key = 2; ForwardedValue mapped(2);
+			std::pair<int&&, ForwardedValue&&> pair{std::move(key), std::move(mapped)};
+			values.emplace(std::move(pair)); require(mapped.value == -1);
+		}
+		require(values.at(2).value == 2 && values.at(4).value == 4 && input.value == 2); values.verify();
+	}
+	{
+		btree::map<PlacementKey, int> values;
+		for (int key : {0, 4, 8, 2}) values.emplace(PlacementKey(key), key);
+		require(values.at(PlacementKey(2)) == 2); values.verify();
+	}
+	{
+		int zero = 0, four = 4, eight = 8, two = 2;
+		btree::map<int, int&> values;
+		values.emplace(0, zero); values.emplace(4, four); values.emplace(8, eight); values.emplace(2, two);
+		require(&values.at(2) == &two && &values.at(4) == &four && four == 4 && eight == 8); values.verify();
+	}
+	using Pair = std::pair<const BudgetKey, BudgetMapped>;
+	using Params = btree::btree_map_params<BudgetKey, BudgetMapped, std::less<BudgetKey>, CountingAllocator<Pair>, 256>;
+	using Node = btree::btree_node<Params>;
+	static_assert(sizeof(BudgetKey) == 3 && alignof(BudgetKey) == 1 && sizeof(BudgetMapped) == 243);
+	auto state = std::make_shared<Allocations>();
+	{
+		btree::map<BudgetKey, BudgetMapped, std::less<BudgetKey>, CountingAllocator<Pair>> values(std::less<BudgetKey>{}, CountingAllocator<Pair>{state});
+		for (unsigned char key : {0, 4, 8, 12}) values.try_emplace(BudgetKey(key), key);
+		auto last = values.find(BudgetKey(12)); require(last != values.end());
+		Node* node = nullptr;
+		auto address = reinterpret_cast<std::uintptr_t>(std::addressof(*last));
+		for (const auto& allocation : state->live) {
+			auto begin = reinterpret_cast<std::uintptr_t>(allocation.first);
+			if (address >= begin && address < begin + allocation.second.bytes) node = std::launder(static_cast<Node*>(allocation.first));
+		}
+		require(node && node->is_leaf() && node->count() < node->max_count());
+		state->fail = true; bool refused = false;
+		try { values.try_emplace(BudgetKey(10), 10); } catch (const std::bad_alloc&) { refused = true; }
+		state->fail = false;
+		require(refused && values.size() == 4 && values.find(BudgetKey(10)) == values.end()); values.verify();
+		values.try_emplace(BudgetKey(10), 10); require(values.size() == 5); values.verify();
+	}
+	require(state->live.empty() && state->bytes == 0);
+}
+
 void ordered_model() {
 	btree::set<int> values;
 	std::set<int> expected;
@@ -817,6 +1072,8 @@ int main(int argc, char** argv) {
 	try {
 		if (argc == 2 && std::string_view(argv[1]) == "--short-root-only") {
 			short_root_lifetime();
+		} else if (argc == 2 && std::string_view(argv[1]) == "--prepared-forwarding-only") {
+			prepared_forwarding();
 		} else if (argc == 2 && std::string_view(argv[1]) == "--nonfull-append-only") {
 			nonfull_append_failure();
 		} else {
@@ -826,7 +1083,7 @@ int main(int argc, char** argv) {
 			compact_copy_boundaries(); copy_failure_positions(); compact_copy_history();
 			assignment_allocation_failure_positions(); assignment_failure_positions();
 			nested_copy_failure_positions(); aligned_and_duplicate_copies();
-			nonfull_append_failure();
+			nonfull_leaf_failures(); nonfull_append_failure(); prepared_key_failures(); prepared_forwarding();
 			root_growth_failures(); root_growth_aliases(); root_growth_move_only_recovery(); root_growth_move_only_mapped();
 		}
 	}

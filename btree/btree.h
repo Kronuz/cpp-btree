@@ -123,6 +123,7 @@
 #include <string>
 #include <stdexcept>
 #include <type_traits>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -368,6 +369,62 @@ struct btree_set_params : public btree_common_params<Key, Compare, Alloc, Target
 	static const Key& get_key(const value_type& x) {
 		return x;
 	}
+};
+
+template <typename T> struct btree_is_pair : std::false_type {};
+template <typename A, typename B>
+struct btree_is_pair<std::pair<A, B>> : std::true_type {};
+
+template <typename Pair>
+decltype(auto) btree_pair_source(Pair&& pair) {
+	if constexpr (std::is_lvalue_reference<Pair>::value || std::is_const<std::remove_reference_t<Pair>>::value)
+		return std::as_const(pair);
+	else return std::forward<Pair>(pair);
+}
+
+template <typename T> struct btree_is_tuple : std::false_type {};
+template <typename... T> struct btree_is_tuple<std::tuple<T...>> : std::true_type {};
+
+template <typename Key, typename Mapped, typename Pair,
+	bool = btree_is_pair<std::remove_cv_t<std::remove_reference_t<Pair>>>::value>
+struct btree_pair_preparable : std::false_type {};
+template <typename Key, typename Mapped, typename Pair>
+struct btree_pair_preparable<Key, Mapped, Pair, true> : std::integral_constant<bool,
+	!std::is_reference<typename std::remove_cv_t<std::remove_reference_t<Pair>>::first_type>::value &&
+	!std::is_reference<typename std::remove_cv_t<std::remove_reference_t<Pair>>::second_type>::value &&
+	std::is_constructible<Key, decltype((btree_pair_source(std::declval<Pair>()).first))>::value &&
+	std::is_constructible<Mapped, decltype((btree_pair_source(std::declval<Pair>()).second))>::value> {};
+
+template <typename Key, typename Mapped, typename... Args>
+struct btree_map_preparable : std::false_type {};
+template <typename Key, typename Mapped, typename A, typename B>
+struct btree_map_preparable<Key, Mapped, A, B> : std::integral_constant<bool,
+	std::is_constructible<Key, A&&>::value && std::is_constructible<Mapped, B&&>::value> {};
+template <typename Key, typename Mapped, typename Pair>
+struct btree_map_preparable<Key, Mapped, Pair> : btree_pair_preparable<Key, Mapped, Pair&&> {};
+template <typename Key, typename Mapped, typename A, typename B, typename C>
+struct btree_map_preparable<Key, Mapped, A, B, C> : std::integral_constant<bool,
+	std::is_same<std::remove_cv_t<std::remove_reference_t<A>>, std::piecewise_construct_t>::value &&
+	btree_is_tuple<std::remove_cv_t<std::remove_reference_t<B>>>::value &&
+	btree_is_tuple<std::remove_cv_t<std::remove_reference_t<C>>>::value> {};
+
+template <typename Key, typename Mapped>
+struct btree_prepared_map_value {
+	Key key;
+	Mapped mapped;
+
+	template <typename A, typename B>
+	btree_prepared_map_value(A&& a, B&& b) : key(std::forward<A>(a)), mapped(std::forward<B>(b)) {}
+	template <typename Pair>
+	explicit btree_prepared_map_value(Pair&& pair)
+		: key(btree_pair_source(std::forward<Pair>(pair)).first), mapped(btree_pair_source(std::forward<Pair>(pair)).second) {}
+	template <typename... A, typename... B>
+	btree_prepared_map_value(std::piecewise_construct_t, std::tuple<A...> a, std::tuple<B...> b)
+		: btree_prepared_map_value(std::move(a), std::move(b), std::index_sequence_for<A...>{}, std::index_sequence_for<B...>{}) {}
+private:
+	template <typename A, typename B, std::size_t... I, std::size_t... J>
+	btree_prepared_map_value(A&& a, B&& b, std::index_sequence<I...>, std::index_sequence<J...>)
+		: key(std::get<I>(std::forward<A>(a))...), mapped(std::get<J>(std::forward<B>(b))...) {}
 };
 
 // An adapter class that converts a lower-bound compare into an upper-bound
@@ -1843,7 +1900,9 @@ private:
 	template <typename... Args>
 	iterator emplace_empty(Args&&... args);
 	template <typename... Args>
-	iterator grow_leaf_root(int position, Args&&... args);
+	iterator replace_leaf(node_type* original, int position, int capacity, Args&&... args);
+	template <typename... Args>
+	iterator emplace_nonfull(iterator iter, Args&&... args);
 
 	// Returns an iterator pointing to the first value >= the value "iter" is
 	// pointing at. Note that "iter" might be pointing to an invalid location as
@@ -2750,9 +2809,9 @@ btree<P>::emplace_empty(Args&&... args) {
 
 template <typename P> template <typename... Args>
 inline typename btree<P>::iterator
-btree<P>::grow_leaf_root(int position, Args&&... args) {
-	auto* original = root();
-	auto* replacement = new_leaf_root_node(std::min<int>(kNodeValues, 2 * original->max_count()));
+btree<P>::replace_leaf(node_type* original, int position, int capacity, Args&&... args) {
+	auto* replacement = original == root() ? new_leaf_root_node(capacity)
+		: node_type::init_leaf(allocate_node(node_type::leaf_size(capacity)), original->get_parent(), capacity);
 	bool incoming_live = false;
 	bool keys_consumed = false;
 	try {
@@ -2774,9 +2833,84 @@ btree<P>::grow_leaf_root(int position, Args&&... args) {
 		if (keys_consumed) clear();
 		throw;
 	}
-	__root() = replacement;
+	if (original == root()) {
+		__root() = replacement;
+	} else {
+		const bool first = leftmost() == original, last = rightmost() == original;
+		original->get_parent()->set_child(original->position(), replacement);
+		if (first) root()->fields_.parent = replacement;
+		if (last) __rightmost() = replacement;
+		++__size();
+	}
 	delete_leaf_node(original);
 	return iterator(replacement, position);
+}
+
+template <typename P> template <typename... Args>
+inline typename btree<P>::iterator
+btree<P>::emplace_nonfull(iterator iter, Args&&... args) {
+	auto* node = iter.node;
+	const int count = node->count();
+	if (iter.position == count) {
+		node->insert_value(count, std::forward<Args>(args)...);
+	} else if constexpr (std::is_same<key_type, value_type>::value) {
+		if constexpr (std::is_nothrow_move_constructible<value_type>::value && sizeof(value_type) <= P::kTargetNodeSize) {
+			value_type incoming(std::forward<Args>(args)...);
+			for (int j = count - 1; j >= iter.position; --j) {
+				node->construct_value(j + 1, std::move(node->value(j)));
+				node->destroy_value(j);
+			}
+			node->construct_value(iter.position, std::move(incoming));
+			node->set_count(count + 1);
+		} else return replace_leaf(node, iter.position, node->max_count(), std::forward<Args>(args)...);
+	} else {
+		constexpr bool eligible = std::is_copy_constructible<key_type>::value &&
+			std::is_nothrow_move_constructible<key_type>::value && !std::is_reference<mapped_type>::value &&
+			std::is_nothrow_move_constructible<mapped_type>::value;
+		constexpr bool preparable = [] {
+			if constexpr (eligible) return btree_map_preparable<key_type, mapped_type, Args...>::value;
+			else return false;
+		}();
+		if constexpr (preparable) {
+			using prepared = btree_prepared_map_value<key_type, mapped_type>;
+			auto commit = [&](prepared& incoming, auto&& key_at) {
+				for (int j = count - 1; j >= iter.position; --j) {
+					node->construct_value(j + 1, std::piecewise_construct,
+						std::forward_as_tuple(key_at(j)), std::forward_as_tuple(std::move(node->value(j).second)));
+					node->destroy_value(j);
+				}
+				node->construct_value(iter.position, std::piecewise_construct,
+					std::forward_as_tuple(std::move(incoming.key)), std::forward_as_tuple(std::move(incoming.mapped)));
+				node->set_count(count + 1);
+			};
+			if constexpr (std::is_nothrow_copy_constructible<key_type>::value) {
+				if constexpr (sizeof(prepared) <= P::kTargetNodeSize) {
+					prepared incoming(std::forward<Args>(args)...);
+					commit(incoming, [&](int j) -> const key_type& { return node->value(j).first; });
+				} else return replace_leaf(node, iter.position, node->max_count(), std::forward<Args>(args)...);
+			} else if constexpr (sizeof(prepared) <= P::kTargetNodeSize &&
+				std::size_t(kNodeValues - 1) <= (P::kTargetNodeSize - sizeof(prepared)) / sizeof(key_type)) {
+				struct key_bank {
+					std::aligned_storage_t<sizeof(key_type), alignof(key_type)> slots[kNodeValues - 1];
+					int count;
+					key_bank() : count(0) {}
+					key_type* at(int i) { return std::launder(reinterpret_cast<key_type*>(&slots[i])); }
+					~key_bank() { while (count) at(--count)->~key_type(); }
+				};
+				struct scratch { prepared incoming; key_bank keys; };
+				if constexpr (sizeof(scratch) <= P::kTargetNodeSize) {
+					scratch state{prepared(std::forward<Args>(args)...), key_bank{}};
+					for (int j = iter.position; j < count; ++j) {
+						::new (static_cast<void*>(&state.keys.slots[state.keys.count])) key_type(node->value(j).first);
+						++state.keys.count;
+					}
+					commit(state.incoming, [&](int j) -> key_type&& { return std::move(*state.keys.at(j - iter.position)); });
+				} else return replace_leaf(node, iter.position, node->max_count(), std::forward<Args>(args)...);
+			} else return replace_leaf(node, iter.position, node->max_count(), std::forward<Args>(args)...);
+		} else return replace_leaf(node, iter.position, node->max_count(), std::forward<Args>(args)...);
+	}
+	if (!root()->is_leaf()) ++__size();
+	return iter;
 }
 
 template <typename P> template <typename... Args>
@@ -2789,23 +2923,22 @@ btree<P>::internal_emplace(const_iterator hint, Args&&... args) {
 		--iter;
 		++iter.position;
 	}
-	bool update_size = false;
+	if (iter.node->count() < iter.node->max_count()) {
+		return emplace_nonfull(iter, std::forward<Args>(args)...);
+	}
 	if (iter.node->count() == iter.node->max_count()) {
 		// Make room in the leaf for the new item.
 		if (iter.node->max_count() < kNodeValues) {
 			// Insertion into the root where the root is smaller that the full node
 			// size. Simply grow the size of the root node.
 			assert(iter.node == root());
-			return grow_leaf_root(iter.position, std::forward<Args>(args)...);
+			return replace_leaf(iter.node, iter.position, std::min<int>(kNodeValues, 2 * iter.node->max_count()), std::forward<Args>(args)...);
 		} else {
 			rebalance_or_split(iter);
 			++__size();
 		}
-	} else {
-		update_size = !root()->is_leaf();
 	}
 	iter.node->insert_value(iter.position, std::forward<Args>(args)...);
-	if (update_size) ++__size();
 	return iter;
 }
 

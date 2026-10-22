@@ -47,3 +47,11 @@ Copyable values retain contents on failure when copied, and nonthrowing moves le
 ## Nonfull insertion accounting
 
 An internal root increments its size only after nonfull leaf insertion succeeds. Incoming-constructor refusal on direct append preserves the previous size; retry can reuse the existing leaf without allocation. This does not change full-node split accounting or repair the shifting mechanism for middle insertion.
+
+## Prepared nonfull insertion
+
+Nonfull middle insertion prepares incoming arguments before consuming originals. Eligible sets shift through one empty slot using nonthrowing moves. Eligible maps also prepare every fallible shifted-key copy, then construct actual const-key pairs and destroy their sources. No library allocation or comparison remains in commitment. Append stays direct.
+
+Scratch uses the configured target-node byte budget, checked against the actual combined storage size after an overflow-safe capacity check. Key storage has a counted prefix and global placement construction. Constructor selection is preserved through narrow member checks and guarded fallback; reference-valued maps and reference-element pairs take that fallback. Throwing-move types reuse the compact-growth replacement guard, with its documented basic recovery limits.
+
+The complete-heap fixture denies ordinary and aligned allocation from the first original mapped move and checks incoming refusal before consumption. Layout and mixed-mode qualification cover C++17/C++20 and both diagnostic modes. This repair does not change full-node split, promotion, rebalance or erase behavior.
