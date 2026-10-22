@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 German Mendez Bravo (Kronuz)
+ * Copyright (c) 2019-2026 Germán Méndez Bravo (Kronuz)
  * Copyright (c) 2013 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");

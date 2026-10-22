@@ -1,5 +1,7 @@
 # btree
 
+Part of [Kronuz C++ Libraries](https://github.com/Kronuz/cpp-libraries), a collection of small, reusable C++ libraries.
+
 [![CI](https://github.com/Kronuz/btree/actions/workflows/ci.yml/badge.svg)](https://github.com/Kronuz/btree/actions/workflows/ci.yml)
 
 ![C++17](https://img.shields.io/badge/C%2B%2B-17%20%7C%2020-blue.svg)
@@ -73,8 +75,7 @@ Issues and pull requests are welcome.
 
 ## 📄 License
 
-Apache 2.0. See [LICENSE](LICENSE). Copyright (c) 2013 Google Inc. and (c) 2019
-Germán Méndez Bravo.
+Apache 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). Copyright (c) 2013 Google Inc. and (c) 2019-2026 Germán Méndez Bravo.
 
 Range insertion and range construction refresh their end hint after each insertion, including root growth and splits. The compact-layout suite compares all four container families with standard ordered containers for duplicate input and populated destinations.
 
