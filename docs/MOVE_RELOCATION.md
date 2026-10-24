@@ -28,6 +28,8 @@ Details: [`NODE_LAYOUT.md`](NODE_LAYOUT.md), "Value slots and relocation". Full 
 | `tests/run_layout.sh`, `tests/run_mixed_mode.sh`, Apple clang 17 | pass | 16/16, 16/16 |
 | `tests/run_layout.sh`, `tests/run_mixed_mode.sh`, Linux g++ 11, native | not run | pass |
 | UBSan + object-size + pointer-overflow, four fixtures, C++20 | not run | pass |
+| `tests/prepared_commit.cc`, Linux g++ 11 ASan/UBSan, C++17 Debug, address randomization on | spins in `AddressSanitizer:DEADLYSIGNAL` (killed at 120 s) | passes |
+| Same, randomization off (`setarch -R`) | passes | passes |
 
 `mutation_bench` (65,536 random inserts then erases, five alternating pairs, about ±3% noise from an A/A run), process CPU:
 
@@ -39,6 +41,8 @@ Details: [`NODE_LAYOUT.md`](NODE_LAYOUT.md), "Value slots and relocation". Full 
 
 With 200-byte keys, insertion makes 147,659 allocations instead of 420,230 (23.8 MB requested instead of 80.5 MB). Node allocation counts, requested bytes and peak live bytes are unchanged. In Detent's 100K-knob lifecycle benchmark this branch retains exactly the same requested bytes as `25f9494` (17.0 MB with short names) and its total CPU is within 3% of a separate `25f9494` run.
 
+GCC 11's AddressSanitizer loops on `DEADLYSIGNAL` when the kernel randomizes addresses beyond what its runtime expects; `master` spins the same way, so the earlier sanitized g++ timeout is not caused by this change.
+
 ## Guarantees and limits
 
 - Relocation cannot throw when `Key` and `T` have nonthrowing moves (strings, variants, nested `btree::map`). Types whose moves can throw keep the previous basic guarantee; there is no transaction engine.
@@ -46,10 +50,9 @@ With 200-byte keys, insertion makes 147,659 allocations instead of 420,230 (23.8
 
 ## Open before merging
 
-1. **A possible hang.** The sanitized g++ 11 run of `tests/prepared_commit.cc` (C++17, Debug) spins at 100% CPU. GCC 11's AddressSanitizer is known to loop on `DEADLYSIGNAL` under high address-space randomization, which hits other binaries on the same host. A probe comparing `25f9494` and this branch with randomization on and off is pending; until it reports, a real loop is not ruled out.
-2. **Sanitizer matrix.** Linux g++ and clang with `BTREE_TEST_SANITIZE=1`, FreeBSD, and macOS AddressSanitizer (it hangs at startup on the development host, even for an empty program).
-3. **GCC 16.** `tests/prepared_commit.cc` aborts at `-std=c++20 -O2` on both `25f9494` and this branch; it passes at `-O0`, `-O1` and with g++ 13. Unexplained.
-4. **Timing gaps.** Debug builds and libstdc++ (where 16-byte keys exceed the 15-byte small buffer) are not measured.
+1. **Sanitizer matrix.** The shared CI (GCC 13 and Clang on Linux, macOS, Clang ASan/UBSan, FreeBSD) runs on this branch by dispatch. The full `BTREE_TEST_SANITIZE=1` matrix with g++, the second leg `AGENTS.md` requires, still needs a host where AddressSanitizer runs with address randomization disabled or a newer runtime.
+2. **GCC 16.** `tests/prepared_commit.cc` aborts at `-std=c++20 -O2` on both `25f9494` and this branch; it passes at `-O0`, `-O1` and with g++ 13. Unexplained.
+3. **Timing gaps.** Debug builds and libstdc++ (where 16-byte keys exceed the 15-byte small buffer) are not measured.
 
 ## Reproduce
 
