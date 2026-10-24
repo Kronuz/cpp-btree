@@ -1,6 +1,6 @@
 # Mutable-pair relocation
 
-**Branch:** `move-relocation`, based on `main` at `25f9494`.
+**Branch:** `move-relocation`, based on `master` at `25f9494`.
 **Status:** Prototype. Correct on every configuration measured below; not yet qualified for release.
 
 ## Summary
